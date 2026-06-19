@@ -42,7 +42,7 @@ export function weekRangeLabel(keys: DateKey[]): string {
   return `${fmt(keys[0])} to ${fmt(keys[keys.length - 1])}`;
 }
 
-const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+export const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function dayLabel(key: DateKey): string {
   const [y, m, d] = key.split("-").map(Number);
@@ -76,7 +76,10 @@ export function msToHuman(ms: number): string {
 
 export function msToClock(ms: number): string {
   const totalSec = Math.max(0, Math.round(ms / 1000));
-  const m = Math.floor(totalSec / 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  return `${`${m}`.padStart(2, "0")}:${`${s}`.padStart(2, "0")}`;
+  const mm = `${m}`.padStart(2, "0");
+  const ss = `${s}`.padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }

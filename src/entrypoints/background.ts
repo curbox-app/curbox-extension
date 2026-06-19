@@ -1,26 +1,14 @@
 import { defineBackground, browser } from "#imports";
-import { get, set, update, watch } from "../lib/storage";
+import { get, watch } from "../lib/storage";
 import { todayKey, nowMinutes } from "../lib/time";
 import { parseLocation, type SiteLocation } from "../lib/url";
 import type { BlockDecision, FocusSession } from "../lib/types";
 import type { ContentMessage } from "../lib/messages";
 import { sendToTab } from "../lib/messages";
-import { evaluate, matchingOnOpenGroups } from "../core/blocker";
+import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
+import { clearOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
 import { persist, startTracking, stopTracking, setWindowFocused, setPageVisible } from "../core/usage";
-
-const PASS: BlockDecision = {
-  blocked: false,
-  source: "group",
-  groupId: "",
-  groupName: "",
-  reason: "",
-  message: "",
-  warning: null,
-  canProceed: false,
-  focusExitable: false,
-};
-const DEFAULT_UNLOCK_MINUTES = 15;
 
 let focusedTabId: number | null = null;
 
@@ -96,55 +84,6 @@ function scheduleGrantEnd(grants: Record<string, number>): void {
   const now = Date.now();
   const upcoming = Object.values(grants).filter((until) => until > now);
   if (upcoming.length > 0) browser.alarms.create("grant-end", { when: Math.min(...upcoming) });
-}
-
-async function pruneGrants(): Promise<void> {
-  const now = Date.now();
-  await update("grants", (grants) =>
-    Object.fromEntries(Object.entries(grants).filter(([, until]) => until > now)),
-  );
-}
-
-// Proceeding unlocks the whole group for a while and counts against any cap.
-// Dynamic warnings pass the minutes chosen on the screen; otherwise we use the preset.
-async function recordProceed(groupId: string, minutes?: number): Promise<void> {
-  const now = Date.now();
-  const settings = await get("settings");
-  const group = settings.groups.find((g) => g.id === groupId);
-  const unlockMinutes = minutes && minutes > 0 ? minutes : (group?.warning.unlockMinutes ?? DEFAULT_UNLOCK_MINUTES);
-  const grantMs = unlockMinutes * 60_000;
-
-  await update("grants", (grants) => {
-    const next: Record<string, number> = { [groupId]: now + grantMs };
-    for (const [id, until] of Object.entries(grants)) {
-      if (until > now) next[id] = until;
-    }
-    return next;
-  });
-
-  await update("proceeds", (proceeds) => {
-    const record = proceeds[groupId];
-    const windowMs = (group?.warning.proceedWindowMinutes ?? 60) * 60_000;
-    const fresh = record && now - record.windowStart < windowMs;
-    return {
-      ...proceeds,
-      [groupId]: fresh
-        ? { count: record!.count + 1, windowStart: record!.windowStart }
-        : { count: 1, windowStart: now },
-    };
-  });
-}
-
-// On a real navigation, "on each open" groups should block again, so drop their grant.
-async function clearOnOpenGrants(location: SiteLocation): Promise<void> {
-  const settings = await get("settings");
-  const ids = matchingOnOpenGroups(location, settings);
-  if (ids.length === 0) return;
-  await update("grants", (grants) => {
-    const next = { ...grants };
-    for (const id of ids) delete next[id];
-    return next;
-  });
 }
 
 export default defineBackground(() => {

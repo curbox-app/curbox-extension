@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import type { FocusGroup, FocusLogEntry, FocusMode, FocusSession } from "../lib/types";
 import { newFocusGroup } from "../lib/types";
-import { dayLabel, lastNDays, msToHuman, todayKey } from "../lib/time";
+import { dateKey, dayLabel, lastNDays, msToClock, msToHuman } from "../lib/time";
 import { startSession, endSession } from "../core/focus";
-import { Segmented, Slider, Toggle, btnPrimary, btnOutline, btnGhost, inputCls } from "./components";
-
-const selectCls = "w-full bg-transparent border-b border-line py-1.5 text-sm transition-colors focus:outline-none focus:border-ink";
+import { Segmented, Slider, Toggle, btnPrimary, btnOutline, btnGhost, inputCls, selectCls } from "./components";
+import { useDraft } from "./useDraft";
 
 const MODE_OPTIONS: { value: FocusMode; label: string }[] = [
   { value: "only-these", label: "Block Selected" },
@@ -22,16 +21,6 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function timer(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const mm = `${m}`.padStart(2, "0");
-  const ss = `${s}`.padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
 function ActiveSession({ focus }: { focus: FocusSession }) {
   const now = useNow(true);
   const remaining = focus.endsAt - now;
@@ -39,7 +28,7 @@ function ActiveSession({ focus }: { focus: FocusSession }) {
     <div className="card relative flex flex-col items-center overflow-hidden p-7 text-center">
       <div className="bloom" aria-hidden="true" />
       <p className="relative text-sm text-muted">I'm holding your focus right now.</p>
-      <p className="font-display tnum relative mt-2 text-[56px] leading-none">{timer(remaining)}</p>
+      <p className="font-display tnum relative mt-2 text-[56px] leading-none">{msToClock(remaining)}</p>
       <p className="label relative mt-2">{focus.name}</p>
       {focus.exitable ? (
         <button onClick={() => void endSession()} className={`relative mt-5 ${btnGhost}`}>
@@ -85,7 +74,7 @@ function StartSession({ groups }: { groups: FocusGroup[] }) {
   );
 }
 
-function statTile(label: string, value: string) {
+function StatTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 p-3 text-center">
       <p className="font-display tnum text-2xl leading-none">{value}</p>
@@ -128,11 +117,11 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {statTile("Sessions", `${sessions}`)}
-        {statTile("Total", msToHuman(totalMs))}
-        {statTile("Streak", `${streak}d`)}
-        {statTile("Avg", msToHuman(avgMs))}
-        {statTile("Completed", `${completedPct}%`)}
+        <StatTile label="Sessions" value={`${sessions}`} />
+        <StatTile label="Total" value={msToHuman(totalMs)} />
+        <StatTile label="Streak" value={`${streak}d`} />
+        <StatTile label="Avg" value={msToHuman(avgMs)} />
+        <StatTile label="Completed" value={`${completedPct}%`} />
       </div>
 
       <div className="flex items-end justify-between gap-2 h-20">
@@ -156,18 +145,11 @@ function computeStreak(log: FocusLogEntry[]): number {
   const days = new Set(log.map((e) => e.day));
   let streak = 0;
   const cursor = new Date();
-  while (days.has(toKey(cursor))) {
+  while (days.has(dateKey(cursor))) {
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
-}
-
-function toKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 function GroupEditor({
@@ -179,9 +161,8 @@ function GroupEditor({
   onSave: (g: FocusGroup) => void;
   onCancel: () => void;
 }) {
-  const [draft, setDraft] = useState<FocusGroup>(group);
+  const [draft, patch] = useDraft<FocusGroup>(group);
   const [entry, setEntry] = useState("");
-  const patch = (p: Partial<FocusGroup>) => setDraft((d) => ({ ...d, ...p }));
 
   const addSite = () => {
     const clean = entry.trim().toLowerCase();
@@ -341,7 +322,7 @@ export function FocusQuickControl({ focus, focusGroups }: { focus: FocusSession 
       <div className="card flex items-center justify-between gap-3 p-4">
         <div>
           <p className="label">Focus</p>
-          <p className="font-display tnum mt-1 text-3xl leading-none">{timer(focus.endsAt - now)}</p>
+          <p className="font-display tnum mt-1 text-3xl leading-none">{msToClock(focus.endsAt - now)}</p>
         </div>
         {focus.exitable && (
           <button onClick={() => void endSession()} className={btnGhost}>

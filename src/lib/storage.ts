@@ -1,10 +1,5 @@
 import { browser } from "#imports";
-import type { FocusLogEntry, FocusSession, Settings, UsageHistory } from "./types";
-
-interface ProceedRecord {
-  count: number;
-  windowStart: number;
-}
+import type { FocusLogEntry, FocusSession, ProceedRecord, Settings, UsageHistory } from "./types";
 
 interface StoreShape {
   usage: UsageHistory;

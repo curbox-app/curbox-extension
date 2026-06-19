@@ -6,15 +6,11 @@ import type {
   BlockReason,
   DayUsage,
   FocusSession,
+  ProceedRecord,
   Settings,
   TimeRange,
   WarningScreen,
 } from "../lib/types";
-
-interface ProceedRecord {
-  count: number;
-  windowStart: number;
-}
 
 interface EvalInput {
   location: SiteLocation;
@@ -28,7 +24,7 @@ interface EvalInput {
   proceeds: Record<string, ProceedRecord>;
 }
 
-const PASS: BlockDecision = {
+export const PASS: BlockDecision = {
   blocked: false,
   source: "group",
   groupId: "",

@@ -1,5 +1,10 @@
 export type DateKey = string;
 
+export interface ProceedRecord {
+  count: number;
+  windowStart: number;
+}
+
 export interface DomainUsage {
   ms: number;
   paths: Record<string, number>;

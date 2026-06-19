@@ -1,6 +1,6 @@
 import { Component, useMemo, useState, type ReactNode } from "react";
 import type { DateKey, UsageHistory } from "../lib/types";
-import { dayLabel, msToHuman, todayKey, weekKeys, weekRangeLabel } from "../lib/time";
+import { DAY_LABELS, dayLabel, msToHuman, todayKey, weekKeys, weekRangeLabel } from "../lib/time";
 import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
 
 // Shared button and input recipes so every screen stays visually in sync.
@@ -11,6 +11,8 @@ export const btnOutline =
 export const btnGhost = "text-sm text-muted transition-colors hover:text-ink";
 export const inputCls =
   "bg-transparent border-b border-line py-1.5 px-1 text-sm transition-colors focus:outline-none focus:border-ink placeholder:text-faint";
+export const selectCls =
+  "w-full bg-transparent border-b border-line py-1.5 text-sm transition-colors focus:outline-none focus:border-ink";
 
 export function Stat({ label, ms }: { label: string; ms: number }) {
   return (
@@ -228,8 +230,6 @@ export function Segmented<T extends string>({
     </div>
   );
 }
-
-const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function DayChips({ active, onToggle }: { active: boolean[]; onToggle: (i: number) => void }) {
   return (

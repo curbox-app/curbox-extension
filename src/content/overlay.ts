@@ -107,6 +107,22 @@ button {
 .ghost:hover { opacity: 0.7; }
 `;
 
+function makePrimary(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "primary";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.onclick = onClick;
+  return button;
+}
+
+function makeNote(text: string): HTMLParagraphElement {
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = text;
+  return note;
+}
+
 export interface OverlayHandlers {
   onProceed: (minutes?: number) => void;
   onLeave: () => void;
@@ -202,19 +218,14 @@ export function createOverlay(): Overlay {
 
   function renderFocus(body: HTMLDivElement, decision: BlockDecision, handlers: OverlayHandlers): void {
     if (decision.focusExitable) {
-      const button = document.createElement("button");
-      button.className = "primary";
-      button.textContent = "End focus session";
-      button.onclick = () => {
-        handlers.onEndFocus();
-        hide();
-      };
-      body.appendChild(button);
+      body.appendChild(
+        makePrimary("End focus session", () => {
+          handlers.onEndFocus();
+          hide();
+        }),
+      );
     } else {
-      const note = document.createElement("p");
-      note.className = "note";
-      note.textContent = "I'll stay until the timer is done.";
-      body.appendChild(note);
+      body.appendChild(makeNote("I'll stay until the timer is done."));
     }
   }
 
@@ -222,19 +233,15 @@ export function createOverlay(): Overlay {
     const warning = decision.warning;
 
     if (!decision.canProceed) {
-      const note = document.createElement("p");
-      note.className = "note";
-      note.textContent =
-        warning?.challenge === "never"
-          ? "This one stays closed for now."
-          : "You've used all your passes for now. Come back later.";
-      body.appendChild(note);
+      body.appendChild(
+        makeNote(
+          warning?.challenge === "never"
+            ? "This one stays closed for now."
+            : "You've used all your passes for now. Come back later.",
+        ),
+      );
       return;
     }
-
-    const button = document.createElement("button");
-    button.className = "primary";
-    button.disabled = true;
 
     if (warning?.challenge === "effort") {
       const sentence = document.createElement("p");
@@ -243,10 +250,9 @@ export function createOverlay(): Overlay {
       const input = document.createElement("input");
       input.setAttribute("autocomplete", "off");
       input.placeholder = "Type it here";
+      const button = makePrimary("Continue", () => !button.disabled && proceed(), true);
       const check = () => (button.disabled = input.value.trim() !== warning.sentence.trim());
       input.oninput = check;
-      button.textContent = "Continue";
-      button.onclick = () => !button.disabled && proceed();
       body.append(sentence, input, button);
       check();
       input.focus();
@@ -263,18 +269,12 @@ export function createOverlay(): Overlay {
       input.value = String(minutes);
       input.setAttribute("autocomplete", "off");
       const chosen = () => Math.max(1, Math.floor(Number(input.value)) || 0);
-      const sync = () => (button.textContent = `Unlock for ${chosen()} min`);
-      input.oninput = sync;
-      button.disabled = false;
-      button.onclick = () => proceed(chosen());
+      const button = makePrimary(`Unlock for ${chosen()} min`, () => proceed(chosen()));
+      input.oninput = () => (button.textContent = `Unlock for ${chosen()} min`);
       body.append(input, button);
-      sync();
       input.focus();
     } else {
-      button.disabled = false;
-      button.textContent = `Unlock for ${minutes} min`;
-      button.onclick = () => proceed(minutes);
-      body.appendChild(button);
+      body.appendChild(makePrimary(`Unlock for ${minutes} min`, () => proceed(minutes)));
     }
   }
 
