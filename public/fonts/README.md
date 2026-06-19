@@ -1,6 +1,11 @@
 # Fonts
 
-Drop `coolvetica.woff2` here to enable the Coolvetica display font used for large
-stats and headers. Until then a condensed fallback stack renders in its place.
+These ship with the extension:
 
-Inter is referenced for body text and falls back to the system UI font.
+- `coolvetica.otf` — the display face for large stats, timers, and the wordmark
+  (mirrors the Android app's `coolvetica_rg`).
+- `coolvetica-cond.otf` — the condensed cut, kept for future use.
+- `inter.woff2` — Inter variable font for all body text and labels.
+
+The untouched Coolvetica originals and their license live in `fonts-src/` at the
+repo root, kept out of the build so the EULA and unused cuts are not published.

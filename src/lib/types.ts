@@ -35,9 +35,9 @@ export type WaitType = "fixed" | "dynamic";
 export interface WarningScreen {
   challenge: UnlockChallenge;
   sentence: string; // effort: the sentence to type
-  waitType: WaitType;
-  waitSeconds: number;
-  delaySeconds: number; // Delay Timer before the challenge appears
+  waitType: WaitType; // fixed: unlock duration preset here; dynamic: chosen on the warning screen
+  unlockMinutes: number; // how long an unlock lasts before the warning returns
+  delaySeconds: number; // brief pause before I can unlock
   customMessage: string;
   proceedLimit: number; // 0 = unlimited
   proceedWindowMinutes: number;
@@ -108,10 +108,10 @@ export interface BlockDecision {
 export function defaultWarningScreen(): WarningScreen {
   return {
     challenge: "wait",
-    sentence: "I am choosing to open this on purpose.",
+    sentence: "",
     waitType: "fixed",
-    waitSeconds: 10,
-    delaySeconds: 0,
+    unlockMinutes: 15,
+    delaySeconds: 5,
     customMessage: "",
     proceedLimit: 0,
     proceedWindowMinutes: 60,
@@ -121,7 +121,7 @@ export function defaultWarningScreen(): WarningScreen {
 export function defaultSchedule(): DaySchedule {
   const days: DayConfig[] = Array.from({ length: 7 }, () => ({
     active: true,
-    limitMinutes: 30,
+    limitMinutes: 0,
     ranges: [{ start: 9 * 60, end: 17 * 60 }],
   }));
   return { uniform: true, days };

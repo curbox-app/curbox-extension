@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { BlockGroup, BlockingMode, DaySchedule, TimeRange, WarningScreen } from "../lib/types";
 import { newGroup } from "../lib/types";
 import { clockToMinutes, minutesToClock } from "../lib/time";
-import { Segmented, Toggle, DayChips } from "./components";
+import { Segmented, Toggle, DayChips, btnPrimary, btnOutline, btnGhost, inputCls } from "./components";
 
 const MODE_OPTIONS: { value: BlockingMode; label: string }[] = [
   { value: "usage", label: "Usage Based" },
@@ -18,21 +18,20 @@ const MODE_LABEL: Record<BlockingMode, string> = {
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const inputCls = "bg-transparent border-b border-line py-1 px-1 text-sm focus:outline-none focus:border-ink";
-
 export function GroupManager({ groups, onChange }: { groups: BlockGroup[]; onChange: (groups: BlockGroup[]) => void }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const editing = groups.find((g) => g.id === editingId);
+  // Edit a draft copy and only commit on Done, so a new group is saved exactly
+  // once and cancelling leaves nothing behind.
+  const [editing, setEditing] = useState<{ group: BlockGroup; isNew: boolean } | null>(null);
 
   if (editing) {
     return (
       <GroupEditor
-        group={editing}
+        group={editing.group}
         onSave={(next) => {
-          onChange(groups.map((g) => (g.id === next.id ? next : g)));
-          setEditingId(null);
+          onChange(editing.isNew ? [...groups, next] : groups.map((g) => (g.id === next.id ? next : g)));
+          setEditing(null);
         }}
-        onCancel={() => setEditingId(null)}
+        onCancel={() => setEditing(null)}
       />
     );
   }
@@ -41,21 +40,21 @@ export function GroupManager({ groups, onChange }: { groups: BlockGroup[]; onCha
     <div className="flex flex-col gap-2">
       {groups.length === 0 && <p className="text-sm text-muted py-2">No blocks yet. Add one below.</p>}
       {groups.map((group) => (
-        <div key={group.id} className="flex items-center justify-between border-b border-line py-3">
-          <button className="text-left" onClick={() => setEditingId(group.id)}>
+        <div key={group.id} className="flex items-center justify-between border-b border-line/70 py-3">
+          <button className="-mx-2 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-state" onClick={() => setEditing({ group, isNew: false })}>
             <p className="text-sm">{group.name}</p>
             <p className="text-xs text-muted">
               {group.matchers.length} site{group.matchers.length === 1 ? "" : "s"} · {MODE_LABEL[group.mode]}
             </p>
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pl-3">
             <Toggle
               on={group.enabled}
               onChange={(on) => onChange(groups.map((g) => (g.id === group.id ? { ...g, enabled: on } : g)))}
             />
             <button
               onClick={() => onChange(groups.filter((g) => g.id !== group.id))}
-              className="text-xs text-muted hover:text-ink"
+              className="text-xs text-faint transition-colors hover:text-ink"
             >
               Remove
             </button>
@@ -63,14 +62,10 @@ export function GroupManager({ groups, onChange }: { groups: BlockGroup[]; onCha
         </div>
       ))}
       <button
-        onClick={() => {
-          const group = newGroup(`New group ${groups.length + 1}`);
-          onChange([...groups, group]);
-          setEditingId(group.id);
-        }}
-        className="mt-2 self-start rounded-full border border-ink px-5 py-2 text-sm"
+        onClick={() => setEditing({ group: newGroup(`New group ${groups.length + 1}`), isNew: true })}
+        className={`mt-3 self-start ${btnOutline}`}
       >
-        New group
+        + New group
       </button>
     </div>
   );
@@ -107,7 +102,7 @@ function GroupEditor({
       />
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs uppercase tracking-widest text-muted">Websites and keywords to block</p>
+        <p className="label">Websites and keywords to block</p>
         <div className="flex gap-2">
           <input
             value={entry}
@@ -116,17 +111,17 @@ function GroupEditor({
             placeholder="youtube.com or youtube.com/shorts"
             className={`${inputCls} flex-1`}
           />
-          <button onClick={addMatcher} className="rounded-full border border-ink px-4 text-sm">
+          <button onClick={addMatcher} className={btnOutline}>
             Add
           </button>
         </div>
         <div className="flex flex-col">
           {draft.matchers.map((m) => (
-            <div key={m} className="flex items-center justify-between border-b border-line py-2">
-              <span className="text-sm font-mono">{m}</span>
+            <div key={m} className="flex items-center justify-between border-b border-line/70 py-2">
+              <span className="font-mono text-sm">{m}</span>
               <button
                 onClick={() => patch({ matchers: draft.matchers.filter((x) => x !== m) })}
-                className="text-xs text-muted hover:text-ink"
+                className="text-xs text-faint transition-colors hover:text-ink"
               >
                 ✕
               </button>
@@ -136,7 +131,7 @@ function GroupEditor({
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs uppercase tracking-widest text-muted">Blocking</p>
+        <p className="label">Blocking</p>
         <Segmented value={draft.mode} options={MODE_OPTIONS} onChange={(mode) => patch({ mode })} />
       </div>
 
@@ -146,14 +141,11 @@ function GroupEditor({
 
       <WarningEditor warning={draft.warning} onChange={(warning) => patch({ warning })} />
 
-      <div className="flex gap-3">
-        <button
-          onClick={() => onSave({ ...draft, name: draft.name.trim() || "Untitled" })}
-          className="rounded-full border border-ink px-6 py-2 text-sm"
-        >
+      <div className="flex items-center gap-4">
+        <button onClick={() => onSave({ ...draft, name: draft.name.trim() || "Untitled" })} className={btnPrimary}>
           Done
         </button>
-        <button onClick={onCancel} className="text-sm text-muted">
+        <button onClick={onCancel} className={btnGhost}>
           Cancel
         </button>
       </div>
@@ -185,11 +177,12 @@ function ScheduleEditor({
   const setAllRanges = (ranges: TimeRange[]) =>
     onChange({ ...schedule, days: schedule.days.map((d) => ({ ...d, ranges })) });
 
+  const setDayRanges = (i: number, ranges: TimeRange[]) =>
+    onChange({ ...schedule, days: schedule.days.map((d, j) => (j === i ? { ...d, ranges } : d)) });
+
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs uppercase tracking-widest text-muted">
-        {mode === "usage" ? "Allowed each day" : "Allowed schedule"}
-      </p>
+      <p className="label">{mode === "usage" ? "Allowed each day" : "Allowed schedule"}</p>
       <DayChips active={active} onToggle={toggleDay} />
 
       {mode === "usage" ? (
@@ -200,12 +193,12 @@ function ScheduleEditor({
           </label>
           {schedule.uniform ? (
             <label className="text-sm flex items-center gap-2">
-              Block after
+              Daily limit
               <input
                 type="number"
-                min={1}
+                min={0}
                 value={firstActive.limitMinutes}
-                onChange={(e) => setAllLimits(Math.max(1, Number(e.target.value)))}
+                onChange={(e) => setAllLimits(Math.max(0, Number(e.target.value)))}
                 className={`${inputCls} w-16`}
               />
               minutes
@@ -218,9 +211,9 @@ function ScheduleEditor({
                     <span className="w-8 text-muted">{DAY_NAMES[i]}</span>
                     <input
                       type="number"
-                      min={1}
+                      min={0}
                       value={d.limitMinutes}
-                      onChange={(e) => setDayLimit(i, Math.max(1, Number(e.target.value)))}
+                      onChange={(e) => setDayLimit(i, Math.max(0, Number(e.target.value)))}
                       className={`${inputCls} w-16`}
                     />
                     minutes
@@ -231,7 +224,26 @@ function ScheduleEditor({
           )}
         </>
       ) : (
-        <RangeEditor ranges={firstActive.ranges} onChange={setAllRanges} />
+        <>
+          <label className="flex items-center justify-between text-xs text-muted">
+            Different schedule each day
+            <Toggle on={!schedule.uniform} onChange={(v) => onChange({ ...schedule, uniform: !v })} />
+          </label>
+          {schedule.uniform ? (
+            <RangeEditor ranges={firstActive.ranges} onChange={setAllRanges} />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {schedule.days.map((d, i) =>
+                d.active ? (
+                  <div key={i} className="flex flex-col gap-1">
+                    <span className="text-xs text-muted">{DAY_NAMES[i]}</span>
+                    <RangeEditor ranges={d.ranges} onChange={(ranges) => setDayRanges(i, ranges)} />
+                  </div>
+                ) : null,
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -274,13 +286,14 @@ function RangeEditor({ ranges, onChange }: { ranges: TimeRange[]; onChange: (ran
 
 function WarningEditor({ warning, onChange }: { warning: WarningScreen; onChange: (w: WarningScreen) => void }) {
   const [open, setOpen] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const patch = (p: Partial<WarningScreen>) => onChange({ ...warning, ...p });
 
   return (
-    <div className="flex flex-col gap-3 border border-line rounded-2xl p-4">
+    <div className="card flex flex-col gap-3 p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-between text-left">
         <span className="text-sm">Warning screen</span>
-        <span className="text-xs text-muted">{open ? "Hide" : "Configure"}</span>
+        <span className="text-xs font-medium text-muted">{open ? "Hide" : "Configure"}</span>
       </button>
 
       {open && (
@@ -291,7 +304,7 @@ function WarningEditor({ warning, onChange }: { warning: WarningScreen; onChange
               value={warning.challenge}
               options={[
                 { value: "never", label: "Never unlock" },
-                { value: "effort", label: "Require effort" },
+                { value: "effort", label: "Type sentence" },
                 { value: "wait", label: "Wait to unlock" },
               ]}
               onChange={(challenge) => patch({ challenge })}
@@ -317,60 +330,81 @@ function WarningEditor({ warning, onChange }: { warning: WarningScreen; onChange
                 ]}
                 onChange={(waitType) => patch({ waitType })}
               />
-              <label className="text-sm flex items-center gap-2">
-                Wait
-                <input
-                  type="number"
-                  min={0}
-                  value={warning.waitSeconds}
-                  onChange={(e) => patch({ waitSeconds: Math.max(0, Number(e.target.value)) })}
-                  className={`${inputCls} w-16`}
-                />
-                seconds
-              </label>
+              {warning.waitType === "fixed" ? (
+                <label className="text-sm flex items-center gap-2">
+                  Unlock for
+                  <input
+                    type="number"
+                    min={1}
+                    value={warning.unlockMinutes ?? 15}
+                    onChange={(e) => patch({ unlockMinutes: Math.max(1, Number(e.target.value)) })}
+                    className={`${inputCls} w-16`}
+                  />
+                  minutes
+                </label>
+              ) : (
+                <p className="text-xs text-muted">I'll ask how long you need each time you unlock.</p>
+              )}
             </div>
           )}
 
-          <label className="text-sm flex items-center gap-2">
-            Brief pause of
-            <input
-              type="number"
-              min={0}
-              value={warning.delaySeconds}
-              onChange={(e) => patch({ delaySeconds: Math.max(0, Number(e.target.value)) })}
-              className={`${inputCls} w-16`}
-            />
-            seconds first
-          </label>
+          {warning.challenge !== "never" && (
+            <label className="text-sm flex items-center gap-2">
+              Brief pause of
+              <input
+                type="number"
+                min={0}
+                value={warning.delaySeconds}
+                onChange={(e) => patch({ delaySeconds: Math.max(0, Number(e.target.value)) })}
+                className={`${inputCls} w-16`}
+              />
+              seconds first
+            </label>
+          )}
 
-          <textarea
-            value={warning.customMessage}
-            onChange={(e) => patch({ customMessage: e.target.value })}
-            placeholder="A message to myself (optional)"
-            rows={2}
-            className={`${inputCls} resize-none`}
-          />
+          <div className="flex flex-col gap-4 border-t border-line/70 pt-3">
+            <button onClick={() => setAdvanced((v) => !v)} className="flex items-center justify-between text-left">
+              <span className="text-xs font-medium text-muted">Advanced</span>
+              <span className="text-xs font-medium text-muted">{advanced ? "Hide" : "Show"}</span>
+            </button>
 
-          <label className="text-sm flex items-center gap-2 flex-wrap">
-            Let me through
-            <input
-              type="number"
-              min={0}
-              value={warning.proceedLimit}
-              onChange={(e) => patch({ proceedLimit: Math.max(0, Number(e.target.value)) })}
-              className={`${inputCls} w-14`}
-            />
-            times every
-            <input
-              type="number"
-              min={1}
-              value={warning.proceedWindowMinutes}
-              onChange={(e) => patch({ proceedWindowMinutes: Math.max(1, Number(e.target.value)) })}
-              className={`${inputCls} w-14`}
-            />
-            minutes
-          </label>
-          <p className="text-xs text-muted">Set passes to 0 for no limit.</p>
+            {advanced && (
+              <>
+                <textarea
+                  value={warning.customMessage}
+                  onChange={(e) => patch({ customMessage: e.target.value })}
+                  placeholder="A message to myself (optional)"
+                  rows={2}
+                  className={`${inputCls} resize-none`}
+                />
+
+                {warning.challenge !== "never" && (
+                  <>
+                    <label className="text-sm flex items-center gap-2 flex-wrap">
+                      Let me through
+                      <input
+                        type="number"
+                        min={0}
+                        value={warning.proceedLimit}
+                        onChange={(e) => patch({ proceedLimit: Math.max(0, Number(e.target.value)) })}
+                        className={`${inputCls} w-14`}
+                      />
+                      times every
+                      <input
+                        type="number"
+                        min={1}
+                        value={warning.proceedWindowMinutes}
+                        onChange={(e) => patch({ proceedWindowMinutes: Math.max(1, Number(e.target.value)) })}
+                        className={`${inputCls} w-14`}
+                      />
+                      minutes
+                    </label>
+                    <p className="text-xs text-muted">Set passes to 0 for no limit.</p>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

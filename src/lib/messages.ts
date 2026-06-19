@@ -4,7 +4,7 @@ import type { BlockDecision } from "./types";
 export type ContentMessage =
   | { type: "visibility"; visible: boolean }
   | { type: "navigated"; url: string }
-  | { type: "proceed"; groupId: string; domain: string }
+  | { type: "proceed"; groupId: string; domain: string; minutes?: number }
   | { type: "endFocus" };
 
 export type BgMessage = { type: "evaluate"; decision: BlockDecision };

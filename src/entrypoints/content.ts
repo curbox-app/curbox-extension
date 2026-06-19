@@ -31,9 +31,9 @@ export default defineContentScript({
       if (message.type !== "evaluate") return;
       if (message.decision.blocked) {
         overlay.show(message.decision, {
-          onProceed: () => {
+          onProceed: (minutes) => {
             const domain = parseLocation(location.href)?.domain;
-            if (domain) void sendToBackground({ type: "proceed", groupId: message.decision.groupId, domain });
+            if (domain) void sendToBackground({ type: "proceed", groupId: message.decision.groupId, domain, minutes });
           },
           onLeave: leave,
           onEndFocus: () => void sendToBackground({ type: "endFocus" }),

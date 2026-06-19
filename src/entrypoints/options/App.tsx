@@ -30,42 +30,48 @@ export function App() {
   };
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-12 flex flex-col gap-8">
+    <div className="mx-auto flex max-w-xl flex-col gap-7 px-6 py-14">
       <header>
-        <h1 className="font-display text-5xl">Curbox</h1>
-        <p className="text-sm text-muted mt-1">I help you stay gentle with your time online.</p>
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display text-5xl leading-none">Curbox</h1>
+          <span className="mt-1 h-2 w-2 animate-pulse rounded-full bg-ink/40" />
+        </div>
+        <p className="mt-2 text-sm text-muted">I help you stay gentle with your time online.</p>
       </header>
 
-      <nav className="flex gap-2 flex-wrap">
+      <nav className="-mt-1 flex gap-1 border-b border-line">
         {TABS.map((t) => (
           <button
             key={t.value}
             onClick={() => setTab(t.value)}
-            className={`rounded-full px-4 py-1.5 text-sm border ${
-              tab === t.value ? "border-ink" : "border-line text-muted"
+            className={`relative px-4 py-3 text-sm font-medium transition-colors ${
+              tab === t.value ? "text-ink" : "text-muted hover:text-ink"
             }`}
           >
             {t.label}
+            {tab === t.value && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-ink" />}
           </button>
         ))}
       </nav>
 
       <ErrorBoundary key={tab}>
-        {tab === "usage" && <UsageView usage={usage} />}
-        {tab === "website" && (
-          <>
-            <GroupManager groups={draft.groups} onChange={(groups) => commit({ ...draft, groups })} />
-            <KeywordHelp />
-          </>
-        )}
-        {tab === "focus" && (
-          <FocusPanel
-            focus={focus}
-            focusGroups={draft.focusGroups}
-            focusLog={focusLog}
-            onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
-          />
-        )}
+        <div className="rise">
+          {tab === "usage" && <UsageView usage={usage} />}
+          {tab === "website" && (
+            <>
+              <GroupManager groups={draft.groups} onChange={(groups) => commit({ ...draft, groups })} />
+              <KeywordHelp />
+            </>
+          )}
+          {tab === "focus" && (
+            <FocusPanel
+              focus={focus}
+              focusGroups={draft.focusGroups}
+              focusLog={focusLog}
+              onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
+            />
+          )}
+        </div>
       </ErrorBoundary>
     </div>
   );
@@ -81,13 +87,13 @@ function KeywordHelp() {
     ["Advanced match", "r:shorts|reels"],
   ];
   return (
-    <div className="border border-line rounded-2xl p-4 mt-6">
-      <p className="text-sm mb-3">How to write keywords</p>
-      <div className="flex flex-col gap-2">
+    <div className="card mt-6 p-5">
+      <p className="label mb-3">How to write keywords</p>
+      <div className="flex flex-col gap-2.5">
         {rows.map(([what, type]) => (
-          <div key={type} className="flex items-center justify-between text-xs">
+          <div key={type} className="flex items-center justify-between gap-3 text-xs">
             <span className="text-muted">{what}</span>
-            <span className="font-mono">{type}</span>
+            <span className="rounded-md bg-surface-2 px-2 py-1 font-mono text-ink">{type}</span>
           </div>
         ))}
       </div>

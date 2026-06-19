@@ -1,4 +1,4 @@
-import type { BlockDecision, WarningScreen } from "../lib/types";
+import type { BlockDecision } from "../lib/types";
 
 const STYLE = `
 :host { all: initial; }
@@ -10,18 +10,19 @@ const STYLE = `
   align-items: center;
   justify-content: center;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #faf9f7;
-  color: #1c1c1c;
+  background: #f5f3ef;
+  color: #1a1917;
   opacity: 0;
-  transition: opacity 0.5s ease;
+  transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .curbox-root.visible { opacity: 1; }
 @media (prefers-color-scheme: dark) {
-  .curbox-root { background: #0b0b0b; color: #ededed; }
-  .breath { border-color: rgba(237, 237, 237, 0.5); }
-  .breath span { color: rgba(237, 237, 237, 0.65); }
-  .ghost { color: rgba(237, 237, 237, 0.6); }
-  input, textarea { color: #ededed; border-color: rgba(237,237,237,0.3); }
+  .curbox-root { background: #0b0b0c; color: #edece9; }
+  .breath { border-color: rgba(237, 236, 233, 0.45); }
+  .breath::before { border-color: rgba(237, 236, 233, 0.16); }
+  .breath span { color: rgba(237, 236, 233, 0.62); }
+  .ghost { color: rgba(237, 236, 233, 0.55); }
+  input, textarea { color: #edece9; border-color: rgba(237,236,233,0.28); }
 }
 .card {
   width: min(460px, 86vw);
@@ -33,20 +34,28 @@ const STYLE = `
   padding: 8px;
 }
 .breath {
+  position: relative;
   width: 92px;
   height: 92px;
   border-radius: 50%;
-  border: 1.5px solid rgba(28, 28, 28, 0.4);
+  border: 1.5px solid rgba(26, 25, 23, 0.38);
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: breathe 6s ease-in-out infinite;
+  animation: breathe 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.breath::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  border: 1px solid rgba(26, 25, 23, 0.14);
 }
 .breath span {
   font-size: 12px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(28, 28, 28, 0.55);
+  color: rgba(26, 25, 23, 0.52);
 }
 @keyframes breathe {
   0%, 100% { transform: scale(0.82); }
@@ -68,7 +77,7 @@ input, textarea {
   width: 100%;
   max-width: 340px;
   background: transparent;
-  border: 1px solid rgba(28, 28, 28, 0.25);
+  border: 1px solid rgba(26, 25, 23, 0.25);
   border-radius: 14px;
   padding: 11px 14px;
   color: inherit;
@@ -92,14 +101,14 @@ button {
 .ghost {
   border: none;
   background: none;
-  color: rgba(28, 28, 28, 0.6);
+  color: rgba(26, 25, 23, 0.55);
   padding: 8px;
 }
 .ghost:hover { opacity: 0.7; }
 `;
 
 export interface OverlayHandlers {
-  onProceed: () => void;
+  onProceed: (minutes?: number) => void;
   onLeave: () => void;
   onEndFocus: () => void;
 }
@@ -169,12 +178,12 @@ export function createOverlay(): Overlay {
     }
 
     const warning = decision.warning;
-    const proceed = () => {
-      handlers.onProceed();
+    const proceed = (minutes?: number) => {
+      handlers.onProceed(minutes);
       hide();
     };
 
-    if (warning && warning.delaySeconds > 0) {
+    if (warning && warning.delaySeconds > 0 && decision.canProceed) {
       const wait = document.createElement("p");
       wait.className = "note";
       body.appendChild(wait);
@@ -209,7 +218,7 @@ export function createOverlay(): Overlay {
     }
   }
 
-  function renderChallenge(body: HTMLDivElement, decision: BlockDecision, proceed: () => void): void {
+  function renderChallenge(body: HTMLDivElement, decision: BlockDecision, proceed: (minutes?: number) => void): void {
     const warning = decision.warning;
 
     if (!decision.canProceed) {
@@ -244,23 +253,29 @@ export function createOverlay(): Overlay {
       return;
     }
 
-    // Wait challenge (or no warning): a timed pause before the button unlocks.
-    const seconds = waitSeconds(warning);
-    button.onclick = () => !button.disabled && proceed();
-    body.appendChild(button);
-    countdown(
-      seconds,
-      (left) => {
-        if (left > 0) {
-          button.disabled = true;
-          button.textContent = `I'll open this in ${left}s`;
-        } else {
-          button.disabled = false;
-          button.textContent = "Continue anyway";
-        }
-      },
-      () => {},
-    );
+    // Wait to unlock: grant temporary access. Fixed uses the preset minutes;
+    // dynamic lets me choose how long right here, then asks again next time.
+    const minutes = Math.max(1, warning?.unlockMinutes ?? 15);
+    if (warning?.waitType === "dynamic") {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "1";
+      input.value = String(minutes);
+      input.setAttribute("autocomplete", "off");
+      const chosen = () => Math.max(1, Math.floor(Number(input.value)) || 0);
+      const sync = () => (button.textContent = `Unlock for ${chosen()} min`);
+      input.oninput = sync;
+      button.disabled = false;
+      button.onclick = () => proceed(chosen());
+      body.append(input, button);
+      sync();
+      input.focus();
+    } else {
+      button.disabled = false;
+      button.textContent = `Unlock for ${minutes} min`;
+      button.onclick = () => proceed(minutes);
+      body.appendChild(button);
+    }
   }
 
   function hide() {
@@ -272,16 +287,6 @@ export function createOverlay(): Overlay {
   }
 
   return { show, hide };
-}
-
-function waitSeconds(warning: WarningScreen | null): number {
-  if (!warning) return 0;
-  if (warning.challenge !== "wait") return 0;
-  if (warning.waitType === "dynamic") {
-    const max = Math.max(3, warning.waitSeconds);
-    return Math.floor(3 + Math.random() * (max - 3 + 1));
-  }
-  return Math.max(0, warning.waitSeconds);
 }
 
 function escapeHtml(value: string): string {

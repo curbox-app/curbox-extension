@@ -1,28 +1,49 @@
 @import "tailwindcss";
 
-/* Coolvetica is used for large stats. Drop coolvetica.woff2 into public/fonts to
-   enable it; until then the condensed fallback stack renders. */
+/* Display face for large stats and the wordmark. The Coolvetica regular weight
+   mirrors the Android app's `coolvetica_rg`. */
 @font-face {
   font-family: "Coolvetica";
-  src: url("/fonts/coolvetica.woff2") format("woff2");
+  src: url("/fonts/coolvetica.otf") format("opentype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+/* Inter variable, used for everything that is read rather than glanced. */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter.woff2") format("woff2");
+  font-weight: 100 900;
   font-display: swap;
 }
 
 :root {
-  --bg: #faf9f7;
-  --surface: #ffffff;
-  --ink: #1c1c1c;
-  --muted: #6f6f6f;
-  --line: #e8e6e2;
+  --bg: #f5f3ef;
+  --surface: #fdfcfa;
+  --surface-2: #efece6;
+  --ink: #1a1917;
+  --muted: #79746c;
+  --faint: #ada89f;
+  --line: #e7e3db;
+  --ring: rgba(26, 25, 23, 0.09);
+  --state: rgba(26, 25, 23, 0.05);
+  --shadow-soft: 0 1px 2px rgba(28, 25, 20, 0.04), 0 2px 10px -4px rgba(28, 25, 20, 0.08);
+  --shadow-float: 0 2px 6px -2px rgba(28, 25, 20, 0.1), 0 12px 30px -10px rgba(28, 25, 20, 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b0b0b;
-    --surface: #151515;
-    --ink: #ededed;
-    --muted: #9a9a9a;
-    --line: #262626;
+    --bg: #0b0b0c;
+    --surface: #161617;
+    --surface-2: #1f1f21;
+    --ink: #edece9;
+    --muted: #8f8b84;
+    --faint: #65615b;
+    --line: #2a2a2c;
+    --ring: rgba(237, 236, 233, 0.1);
+    --state: rgba(237, 236, 233, 0.06);
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 12px -4px rgba(0, 0, 0, 0.5);
+    --shadow-float: 0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 14px 34px -10px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -31,9 +52,17 @@
   --font-display: "Coolvetica", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-state: var(--state);
+  --radius-card: 22px;
+  --radius-pill: 999px;
+  --shadow-soft: var(--shadow-soft);
+  --shadow-float: var(--shadow-float);
+  --ease-calm: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 html,
@@ -42,8 +71,153 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+  background-clip: padding-box;
+}
+
+/* A small uppercase eyebrow label used above every section and stat. */
+@utility label {
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Elevated tonal surface that replaces the repeated hairline-border boxes. */
+@utility card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Concentric ripple rings, the recurring "breathing water" motif. */
+@utility bloom {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background:
+    radial-gradient(circle, transparent 35.5%, var(--ring) 36%, transparent 37.2%),
+    radial-gradient(circle, transparent 52.5%, var(--ring) 53%, transparent 54.2%),
+    radial-gradient(circle, transparent 69.5%, var(--ring) 70%, transparent 71.2%),
+    radial-gradient(circle, transparent 86.5%, var(--ring) 87%, transparent 88.2%);
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 78%);
+  mask-image: radial-gradient(circle, #000 55%, transparent 78%);
+  animation: ripple 9s var(--ease-calm) infinite;
+}
+
+@keyframes ripple {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.97);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.04);
+    opacity: 1;
+  }
+}
+
+/* Gentle entrance for panels and sections. */
+@utility rise {
+  animation: rise 0.5s var(--ease-calm) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Minimal range input shared by the focus and usage editors. */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  outline: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--ink);
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.15s var(--ease-calm);
+}
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+.slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ink);
+  cursor: pointer;
+}
+.slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

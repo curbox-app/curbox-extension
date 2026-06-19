@@ -21,13 +21,16 @@ export function App() {
   if (!ready) return <div className="w-[360px] h-[480px]" />;
 
   return (
-    <div className="w-[360px] min-h-[480px] bg-bg px-5 py-6 flex flex-col gap-6">
+    <div className="flex min-h-[480px] w-[360px] flex-col gap-6 bg-bg px-5 py-6">
       <ErrorBoundary>
         <UsageView usage={usage} />
         <FocusQuickControl focus={focus} focusGroups={settings.focusGroups} />
       </ErrorBoundary>
-      <button onClick={() => void openOptions()} className="mt-auto text-xs text-muted self-center">
-        Manage blocks and focus
+      <button
+        onClick={() => void openOptions()}
+        className="mt-auto flex items-center justify-center gap-1.5 rounded-pill py-2.5 text-xs font-medium text-muted transition-colors hover:bg-state hover:text-ink"
+      >
+        Manage blocks and focus →
       </button>
     </div>
   );

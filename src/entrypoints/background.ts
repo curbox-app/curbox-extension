@@ -20,7 +20,7 @@ const PASS: BlockDecision = {
   canProceed: false,
   focusExitable: false,
 };
-const GRANT_MS = 15 * 60_000;
+const DEFAULT_UNLOCK_MINUTES = 15;
 
 let focusedTabId: number | null = null;
 
@@ -62,7 +62,13 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
 }
 
 async function evaluateFocused(): Promise<void> {
-  if (focusedTabId == null) return;
+  // The worker can be restarted out from under us, dropping focusedTabId, so
+  // recover the active tab before giving up.
+  if (focusedTabId == null) {
+    const [tab] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id == null) return;
+    focusedTabId = tab.id;
+  }
   try {
     const tab = await browser.tabs.get(focusedTabId);
     await evaluateTab(focusedTabId, tab.url, true);
@@ -83,14 +89,33 @@ function scheduleFocusEnd(focus: FocusSession | null): void {
   if (focus) browser.alarms.create("focus-end", { when: focus.endsAt });
 }
 
-// Proceeding grants the whole group a short reprieve and counts against any cap.
-async function recordProceed(groupId: string): Promise<void> {
+// Wake exactly when the soonest unlock expires, so the warning returns on time
+// instead of waiting on the next tick (or a tab switch).
+function scheduleGrantEnd(grants: Record<string, number>): void {
+  void browser.alarms.clear("grant-end");
+  const now = Date.now();
+  const upcoming = Object.values(grants).filter((until) => until > now);
+  if (upcoming.length > 0) browser.alarms.create("grant-end", { when: Math.min(...upcoming) });
+}
+
+async function pruneGrants(): Promise<void> {
+  const now = Date.now();
+  await update("grants", (grants) =>
+    Object.fromEntries(Object.entries(grants).filter(([, until]) => until > now)),
+  );
+}
+
+// Proceeding unlocks the whole group for a while and counts against any cap.
+// Dynamic warnings pass the minutes chosen on the screen; otherwise we use the preset.
+async function recordProceed(groupId: string, minutes?: number): Promise<void> {
   const now = Date.now();
   const settings = await get("settings");
   const group = settings.groups.find((g) => g.id === groupId);
+  const unlockMinutes = minutes && minutes > 0 ? minutes : (group?.warning.unlockMinutes ?? DEFAULT_UNLOCK_MINUTES);
+  const grantMs = unlockMinutes * 60_000;
 
   await update("grants", (grants) => {
-    const next: Record<string, number> = { [groupId]: now + GRANT_MS };
+    const next: Record<string, number> = { [groupId]: now + grantMs };
     for (const [id, until] of Object.entries(grants)) {
       if (until > now) next[id] = until;
     }
@@ -130,10 +155,13 @@ export default defineBackground(() => {
       void evaluateFocused();
     } else if (alarm.name === "focus-end") {
       void activeSession().then(() => evaluateAllTabs());
+    } else if (alarm.name === "grant-end") {
+      void pruneGrants().then(() => evaluateAllTabs());
     }
   });
 
   void activeSession().then(scheduleFocusEnd);
+  void get("grants").then(scheduleGrantEnd);
 
   watch((changed) => {
     if ("focus" in changed) {
@@ -141,6 +169,7 @@ export default defineBackground(() => {
       void evaluateAllTabs();
     }
     if ("settings" in changed) void evaluateAllTabs();
+    if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
   });
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
@@ -195,7 +224,7 @@ export default defineBackground(() => {
       return;
     }
     if (message.type === "proceed") {
-      void recordProceed(message.groupId).then(() => {
+      void recordProceed(message.groupId, message.minutes).then(() => {
         if (tabId != null) void evaluateTab(tabId, sender.tab?.url, tabId === focusedTabId);
         sendResponse(true);
       });
