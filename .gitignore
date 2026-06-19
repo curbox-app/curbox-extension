@@ -1,0 +1,18 @@
+node_modules
+.wxt
+.output
+stats.html
+*.log
+.DS_Store
+
+# Ignore documentation and layout files
+CLAUDE.md
+android_docs/
+layout/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* Coolvetica is used for large stats. Drop coolvetica.woff2 into public/fonts to
+   enable it; until then the condensed fallback stack renders. */
+@font-face {
+  font-family: "Coolvetica";
+  src: url("/fonts/coolvetica.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --bg: #faf9f7;
+  --surface: #ffffff;
+  --ink: #1c1c1c;
+  --muted: #6f6f6f;
+  --line: #e8e6e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0b;
+    --surface: #151515;
+    --ink: #ededed;
+    --muted: #9a9a9a;
+    --line: #262626;
+  }
+}
+
+@theme inline {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Coolvetica", "Bebas Neue", "Oswald", "Arial Narrow", sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
