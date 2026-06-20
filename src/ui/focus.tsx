@@ -90,6 +90,7 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
   const sessions = rows.length;
   const totalMs = rows.reduce((s, e) => s + e.actualMs, 0);
   const avgMs = sessions ? Math.round(totalMs / sessions) : 0;
+  const longestMs = rows.reduce((m, e) => Math.max(m, e.actualMs), 0);
   const completed = rows.filter((e) => e.completed).length;
   const completedPct = sessions ? Math.round((100 * completed) / sessions) : 0;
   const streak = computeStreak(rows);
@@ -119,23 +120,37 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
       <div className="grid grid-cols-3 gap-2">
         <StatTile label="Sessions" value={`${sessions}`} />
         <StatTile label="Total" value={msToHuman(totalMs)} />
-        <StatTile label="Streak" value={`${streak}d`} />
         <StatTile label="Avg" value={msToHuman(avgMs)} />
         <StatTile label="Completed" value={`${completedPct}%`} />
+        <StatTile label="Streak" value={`${streak}d`} />
+        <StatTile label="Longest" value={msToHuman(longestMs)} />
       </div>
 
-      <div className="flex items-end justify-between gap-2 h-20">
-        {week.map((day, i) => (
-          <div key={day} className="flex flex-1 flex-col items-center gap-1.5">
-            <div className="flex flex-1 items-end w-full justify-center">
-              <div
-                style={{ height: Math.max(3, Math.round((perDay[i] / max) * 60)) }}
-                className="w-full max-w-[10px] rounded-full bg-line transition-all duration-300"
-              />
-            </div>
-            <span className="text-[10px] text-faint">{dayLabel(day)}</span>
-          </div>
-        ))}
+      <div className="relative h-24">
+        <div className="flex h-full items-end justify-between gap-1.5 pb-6">
+          {week.map((day, i) => {
+            const has = perDay[i] > 0;
+            const height = has ? Math.max(6, Math.round((perDay[i] / max) * 60)) : 3;
+            return (
+              <div key={day} className="flex h-full flex-1 items-end justify-center">
+                <div
+                  style={{ height }}
+                  className={`w-full max-w-[13px] rounded-full transition-all duration-300 ease-out ${
+                    has ? "bg-line" : "bg-line/50"
+                  }`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 h-px bg-line/70" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-between gap-1.5">
+          {week.map((day) => (
+            <span key={day} className="flex-1 text-center text-[11px] text-faint">
+              {dayLabel(day)}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

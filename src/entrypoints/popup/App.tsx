@@ -15,13 +15,35 @@ async function openOptions(): Promise<void> {
   window.close();
 }
 
+function Header() {
+  return (
+    <header className="flex items-center justify-between">
+      <h1 className="font-display text-2xl leading-none tracking-tight">Curbox</h1>
+      <span className="flex items-center gap-1.5 text-[11px] text-faint">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink/40" />
+        Today
+      </span>
+    </header>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="relative flex h-[480px] w-[360px] flex-col items-center justify-center overflow-hidden bg-bg">
+      <div className="bloom" aria-hidden="true" />
+      <span className="label relative">A quiet moment…</span>
+    </div>
+  );
+}
+
 export function App() {
   const { usage, settings, focus, ready } = useCurbox();
 
-  if (!ready) return <div className="w-[360px] h-[480px]" />;
+  if (!ready) return <Loading />;
 
   return (
     <div className="flex min-h-[480px] w-[360px] flex-col gap-6 bg-bg px-5 py-6">
+      <Header />
       <ErrorBoundary>
         <UsageView usage={usage} />
         <FocusQuickControl focus={focus} focusGroups={settings.focusGroups} />

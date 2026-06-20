@@ -1,6 +1,6 @@
 import { Component, useMemo, useState, type ReactNode } from "react";
 import type { DateKey, UsageHistory } from "../lib/types";
-import { DAY_LABELS, dayLabel, msToHuman, todayKey, weekKeys, weekRangeLabel } from "../lib/time";
+import { DAY_LABELS, dayLabel, friendlyDate, msToHuman, todayKey, weekKeys, weekRangeLabel } from "../lib/time";
 import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
 
 // Shared button and input recipes so every screen stays visually in sync.
@@ -121,12 +121,12 @@ function DomainItem({ row }: { row: DomainRow }) {
   );
 }
 
-export function DomainList({ rows }: { rows: DomainRow[] }) {
+export function DomainList({ rows, emptyMessage }: { rows: DomainRow[]; emptyMessage: string }) {
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-12 text-center">
         <span className="h-2 w-2 animate-pulse rounded-full bg-faint" />
-        <p className="text-sm text-muted">Nothing yet today. Enjoy the quiet.</p>
+        <p className="text-sm text-muted">{emptyMessage}</p>
       </div>
     );
   }
@@ -162,7 +162,7 @@ export function UsageView({ usage }: { usage: UsageHistory }) {
 
   return (
     <div className="rise flex flex-col gap-6">
-      <Stat label={isToday ? "Total today" : selected} ms={total} />
+      <Stat label={isToday ? "Total today" : friendlyDate(selected)} ms={total} />
       <div className="card px-4 pb-3 pt-4">
         <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
         <div className="mt-1 flex items-center justify-center gap-2 text-xs text-muted">
@@ -175,7 +175,10 @@ export function UsageView({ usage }: { usage: UsageHistory }) {
       </div>
       <div>
         <p className="label mb-1">{isToday ? "Sites today" : "Sites"}</p>
-        <DomainList rows={rows} />
+        <DomainList
+          rows={rows}
+          emptyMessage={isToday ? "Nothing yet today. Enjoy the quiet." : "No sites recorded that day."}
+        />
       </div>
     </div>
   );

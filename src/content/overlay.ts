@@ -57,9 +57,32 @@ const STYLE = `
   text-transform: uppercase;
   color: rgba(26, 25, 23, 0.52);
 }
+.breath .cue { display: inline-grid; }
+.breath .cue > span {
+  grid-area: 1 / 1;
+  animation: cue-in 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.breath .cue .out { animation-name: cue-out; }
+.breath .static { display: none; }
 @keyframes breathe {
   0%, 100% { transform: scale(0.82); }
   50% { transform: scale(1.12); }
+}
+@keyframes cue-in {
+  0%, 44% { opacity: 1; }
+  50%, 94% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes cue-out {
+  0%, 44% { opacity: 0; }
+  50%, 94% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .curbox-root { transition: none; }
+  .breath { animation: none; transform: none; }
+  .breath .cue { display: none; }
+  .breath .static { display: inline; }
 }
 .message {
   font-size: 21px;
@@ -175,9 +198,15 @@ export function createOverlay(): Overlay {
 
     const root = document.createElement("div");
     root.className = "curbox-root";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "A mindful pause from Curbox");
     root.innerHTML = `
-      <div class="card">
-        <div class="breath"><span>Breathe</span></div>
+      <div class="card" tabindex="-1">
+        <div class="breath" aria-hidden="true">
+          <span class="cue"><span class="in">Breathe in</span><span class="out">Breathe out</span></span>
+          <span class="static">Breathe</span>
+        </div>
         <p class="message">${escapeHtml(decision.message)}</p>
         <div class="body"></div>
         <button class="ghost">Take me somewhere calmer</button>
@@ -185,6 +214,8 @@ export function createOverlay(): Overlay {
     shadow.appendChild(root);
     requestAnimationFrame(() => root.classList.add("visible"));
     root.querySelector<HTMLButtonElement>(".ghost")!.onclick = handlers.onLeave;
+    root.querySelector<HTMLElement>(".card")!.focus();
+    trapFocus(root, shadow, handlers.onLeave);
 
     const body = root.querySelector<HTMLDivElement>(".body")!;
 
@@ -287,6 +318,37 @@ export function createOverlay(): Overlay {
   }
 
   return { show, hide };
+}
+
+// Keep keyboard focus inside the overlay and let Escape lead somewhere calmer.
+// Listeners live on `root`, which is removed wholesale in hide(), so they need
+// no separate teardown.
+function trapFocus(root: HTMLElement, shadow: ShadowRoot, onEscape: () => void): void {
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onEscape();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const items = Array.from(
+      root.querySelectorAll<HTMLElement>("button, input, textarea, [href]"),
+    ).filter((el) => !el.hasAttribute("disabled"));
+    if (items.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = shadow.activeElement as HTMLElement | null;
+    if (e.shiftKey && (active === first || active === null)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
 }
 
 function escapeHtml(value: string): string {

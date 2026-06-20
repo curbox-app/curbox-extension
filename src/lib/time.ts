@@ -44,9 +44,17 @@ export function weekRangeLabel(keys: DateKey[]): string {
 
 export const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 export function dayLabel(key: DateKey): string {
   const [y, m, d] = key.split("-").map(Number);
   return DAY_LABELS[new Date(y, m - 1, d).getDay()];
+}
+
+// A readable single date, e.g. "Mon, Jun 15", for past days shown to the user.
+export function friendlyDate(key: DateKey): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return `${WEEKDAYS[new Date(y, m - 1, d).getDay()]}, ${MONTHS[m - 1]} ${d}`;
 }
 
 export function nowMinutes(d = new Date()): number {
