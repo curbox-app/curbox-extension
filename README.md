@@ -16,50 +16,25 @@ names:
 
 When a site is paused it shows a breathing overlay instead of a hard block.
 
-## Stack
+## Installation
 
-- [WXT](https://wxt.dev) (Chromium MV3 + Firefox MV2)
-- TypeScript, React, Tailwind CSS v4
+Since the extension is not yet available on browser stores, you can install it manually.
 
-## Develop
+### For Chrome, Brave, and other Chromium-based browsers:
 
-```bash
-npm install
-npm run dev          # Chromium (loads a dev profile)
-npm run dev:firefox  # Firefox
-```
+1.  Download the project files.
+2.  Open a terminal in the project folder and run `npm install` followed by `npm run build`.
+3.  This will create a `.output/chrome-mv3` directory.
+4.  Open your browser's extension page (e.g., `chrome://extensions`).
+5.  Enable "Developer mode".
+6.  Click "Load unpacked" and select the `.output/chrome-mv3` directory.
 
-## Build
+### For Firefox:
 
-```bash
-npm run build         # .output/chrome-mv3
-npm run build:firefox # .output/firefox-mv2
-npm run zip           # packaged zip for the store
-```
+1.  Download the project files.
+2.  Open a terminal in the project folder and run `npm install` followed by `npm run build:firefox`.
+3.  This will create a `.output/firefox-mv2` directory.
+4.  Open Firefox and go to `about:debugging`.
+5.  Click "This Firefox" and then "Load Temporary Add-on...".
+6.  Select any file inside the `.output/firefox-mv2` directory.
 
-Load the unpacked folder from `.output/` in your browser's extensions page.
-
-## How it works
-
-- **Background service worker** (`src/entrypoints/background.ts`) orchestrates
-  the core logic:
-  - `core/usage.ts` tracks active time, only while the tab is focused and visible.
-  - `core/blocker.ts` evaluates every block group (website and keyword) against
-    the current URL, its blocking mode, schedule, and any temporary grant.
-  - `lib/match.ts` implements the keyword syntax (domains, paths, wildcards,
-    domain words, and `r:` regex).
-- **Content script** (`src/entrypoints/content.ts`) reports page visibility and
-  SPA navigation, and injects the Warning Screen overlay (`src/content/overlay.ts`)
-  in a shadow root so page styles never leak in.
-- **Popup** (`src/entrypoints/popup`) is the Usage view.
-- **Options** (`src/entrypoints/options`) is the Reducers dashboard: Usage,
-  Website Blocker, Keyword Blocker, and a log of stated intents.
-
-All state lives in `chrome.storage.local` behind the typed helpers in
-`src/lib/storage.ts`.
-
-## Fonts
-
-Large stats use Coolvetica. Drop `coolvetica.woff2` into `public/fonts/` to enable
-it; a condensed fallback renders until then. Body text uses Inter with a system
-fallback.
