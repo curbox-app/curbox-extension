@@ -3,14 +3,16 @@ import { useCurbox } from "../../ui/useStore";
 import { UsageView, ErrorBoundary } from "../../ui/components";
 import { GroupManager } from "../../ui/blocker";
 import { FocusPanel } from "../../ui/focus";
+import { AboutPanel } from "../../ui/about";
 import type { Settings } from "../../lib/types";
 
-type Tab = "usage" | "website" | "focus";
+type Tab = "usage" | "website" | "focus" | "about";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
   { value: "website", label: "Website Blocker" },
   { value: "focus", label: "Focus" },
+  { value: "about", label: "About" },
 ];
 
 export function App() {
@@ -36,7 +38,7 @@ export function App() {
           <h1 className="font-display text-5xl leading-none">Curbox</h1>
           <span className="mt-1 h-2 w-2 animate-pulse rounded-full bg-ink/40" />
         </div>
-        <p className="mt-2 text-sm text-muted">I help you stay gentle with your time online.</p>
+        <p className="mt-2 text-sm text-muted">break the doomscroll</p>
       </header>
 
       <nav className="-mt-1 flex gap-1 border-b border-line">
@@ -71,6 +73,7 @@ export function App() {
               onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
             />
           )}
+          {tab === "about" && <AboutPanel />}
         </div>
       </ErrorBoundary>
     </div>

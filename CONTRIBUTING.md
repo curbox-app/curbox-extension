@@ -1,64 +1,88 @@
-# Contributing to Curbox Browser Extension
+<div align="center">
 
-First off, thank you for considering contributing to Curbox! It's people like you that make Curbox such a great tool.
+# Contributing to Curbox
 
-## How to Contribute
+Thanks for being here. Curbox stays free because people pitch in, and that includes you.
 
-We welcome contributions in various forms, including:
-- Reporting bugs
-- Suggesting enhancements
-- Submitting pull requests for new features or bug fixes
-- Improving documentation
+[Discord](https://discord.com/invite/Vs9mwUtuCN) · [Report a bug](https://github.com/curbox-app/curbox-extension/issues) · [Donate](https://curbox.app/donate)
 
-## Getting Started
+</div>
 
-1.  **Fork & Clone**: Fork the repository and clone it to your local machine.
-2.  **Install Dependencies**: We use `bun` for package management.
-    ```bash
-    bun install
-    ```
-3.  **Run in Development**: To start the development server and load the extension in your browser:
-    ```bash
-    bun dev
-    ```
-    This will create a `dist` directory with the unpacked extension. Follow the instructions in your browser to load it.
+---
+
+## Ways to help
+
+- **Report bugs** so we can squash them.
+- **Suggest enhancements** that fit the calm, minimal spirit.
+- **Send pull requests** for fixes and features.
+- **Improve the docs** when something reads unclear.
+
+Not a coder? Sharing the project and hanging out in the [Discord](https://discord.com/invite/Vs9mwUtuCN) helps just as much.
+
+## Getting started
+
+```bash
+# 1. Fork, then clone your fork
+git clone https://github.com/<you>/curbox-extension.git
+cd curbox-extension
+
+# 2. Install dependencies
+npm install
+
+# 3. Start the dev server (Chromium)
+npm run dev          # Firefox:  npm run dev:firefox
+```
+
+`npm run dev` builds the extension into `.output/` and reloads on save. Load that folder in your browser using the steps in the [README](README.md#installation).
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server with hot reload (Chromium) |
+| `npm run dev:firefox` | Dev server for Firefox |
+| `npm run build` | Production build → `.output/chrome-mv3` |
+| `npm run build:firefox` | Production build → `.output/firefox-mv2` |
+| `npm run compile` | Type check with `tsc` |
 
 ## Architecture
 
-The extension follows a compartmentalized architecture:
+The code splits across three layers.
 
-1.  **Background Service Worker (Core Logic)**:
-    -   **Usage Tracker Component**: Monitors active tab time and tab changes.
-    -   **Blocker Component**: Evaluates if a URL should be blocked.
-    -   **Focus Mode Component**: Manages focus sessions.
-    -   State is persisted to `chrome.storage.local`.
+**1. Background service worker.** This is where the core logic lives.
+- **Usage Tracker** watches the active tab and tab switches.
+- **Blocker** decides whether a URL should be paused.
+- **Focus Mode** runs focus sessions.
+- State is saved to `chrome.storage.local`.
 
-2.  **Content Scripts (Enforcement & Tracking)**:
-    -   **Visibility Tracker**: Uses the Page Visibility API to track time accurately.
-    -   **Overlay Injector**: Injects the block overlay into the DOM.
+**2. Content scripts.** These handle enforcement and tracking on the page.
+- **Visibility Tracker** uses the Page Visibility API so time only counts when you are actually looking.
+- **Overlay Injector** drops the breathing block overlay into the page.
 
-3.  **Popup / Dashboard UI**:
-    -   Built with React and Tailwind CSS.
-    -   Displays usage stats and provides configuration options.
+**3. Popup and dashboard UI.** Built with React and Tailwind. This is the usage stats and the configuration screens.
 
-## Code Style
+## Code style
 
--   **DRY Principle**: Don't repeat yourself.
--   **Comments**: Only use comments where the code's purpose is not immediately obvious.
--   **TypeScript**: Follow standard TypeScript best practices.
+- **DRY**: do not repeat yourself.
+- **Comments**: only where the intent is not obvious from the code.
+- **TypeScript**: keep it typed and run `npm run compile` before you push.
 
-## UX Principles
+## UX principles
 
--   **Speak in First Person**: "I'm helping you stay focused" instead of "Focus mode is active."
--   **No Dashes**: Never use dashes (-) in user-facing text.
--   **Simple Language**: Keep it simple, crisp, and concise (aim for a 6th-grade reading level).
--   **Peaceful Friction**: The goal is to provide a "pause" for the user, not a "punishment."
+These keep every screen feeling like Curbox. Match them in any user facing text.
 
-## Submitting a Pull Request
+- **Speak in first person.** "I'm helping you stay focused," not "Focus mode is active."
+- **No dashes.** Never use a dash in text the user reads.
+- **Simple language.** Crisp, calm, around a 6th grade reading level.
+- **Peaceful friction.** Offer a pause, never a punishment.
 
-1.  Create a new branch for your feature or bugfix.
-2.  Make your changes, adhering to the code style and UX principles.
-3.  Ensure your code is well-formatted and lint-free.
-4.  Submit a pull request with a clear description of the changes you've made.
+## Opening a pull request
 
-Thank you for your contribution!
+1. Branch off `main` for your fix or feature.
+2. Make your changes, following the style and UX principles above.
+3. Run `npm run compile` and confirm the build is clean.
+4. Open the PR with a clear description of what changed and why.
+
+<div align="center">
+
+Thank you for helping people take their time back.
+
+</div>
