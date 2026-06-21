@@ -159,6 +159,11 @@ export interface Overlay {
 
 export function createOverlay(): Overlay {
   let host: HTMLDivElement | null = null;
+  // Signature of the decision currently on screen. The background re-sends the
+  // same "evaluate" on every tick and focus change; without this we would tear
+  // the overlay down and rebuild it each time, replaying the fade and dropping
+  // any in-progress countdown or typed input. Identical decision => leave it be.
+  let shownKey: string | null = null;
   const timers = new Set<ReturnType<typeof setInterval>>();
 
   function mount(): ShadowRoot {
@@ -192,7 +197,10 @@ export function createOverlay(): Overlay {
   }
 
   function show(decision: BlockDecision, handlers: OverlayHandlers) {
+    const key = JSON.stringify(decision);
+    if (host && shownKey === key) return;
     if (host) hide();
+    shownKey = key;
     const shadow = mount();
     document.documentElement.style.overflow = "hidden";
 
@@ -315,6 +323,7 @@ export function createOverlay(): Overlay {
     document.documentElement.style.overflow = "";
     host?.remove();
     host = null;
+    shownKey = null;
   }
 
   return { show, hide };

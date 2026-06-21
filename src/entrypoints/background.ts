@@ -147,7 +147,13 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: ContentMessage, sender, sendResponse) => {
     const tabId = sender.tab?.id;
     if (message.type === "visibility") {
-      if (tabId != null && tabId === focusedTabId) setPageVisible(message.visible);
+      if (tabId != null && tabId === focusedTabId) {
+        // The page only reports engaged when its window holds OS focus, so a
+        // true here is proof the window is focused. Trust it to heal a focus
+        // event the OS may have dropped (onFocusChanged is flaky on macOS).
+        if (message.visible) setWindowFocused(true);
+        setPageVisible(message.visible);
+      }
       return;
     }
     if (message.type === "navigated") {

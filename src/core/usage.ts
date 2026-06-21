@@ -12,14 +12,15 @@ interface ActiveState {
 
 const MIN_RECORD_MS = 1000;
 
-// The tick alarm folds time in every 30s, and every focus/visibility change does
-// too, so a healthy gap between accumulations is small. A gap far larger than a
-// tick means the worker or the whole machine was suspended (system sleep, lid
-// close, heavy throttling) with no events firing. We can't claim the user was
-// present through that, so we cap the contribution to a single tick rather than
-// banking the entire span.
-const TICK_MS = 30_000;
-const MAX_GAP_MS = TICK_MS * 2;
+// While counting, time is folded in on every tick (~30-60s, browsers clamp the
+// alarm) plus every focus/visibility change, so the gap between accumulations is
+// always small. A gap of minutes can only happen if the worker stayed alive yet
+// stopped ticking, which means the whole process was frozen: system sleep, lid
+// close, or hibernation. (A normal worker shutdown resets `active` to null, so
+// it re-baselines on wake and never produces such a gap.) The user was not there
+// during a freeze, so that span is discarded rather than banked as usage. The
+// threshold sits well above any real tick to avoid clipping genuine time.
+const SUSPEND_GAP_MS = 3 * 60_000;
 
 let active: ActiveState | null = null;
 let counting = false;
@@ -40,10 +41,9 @@ function shouldCount(): boolean {
 function accumulate(): void {
   if (!active) return;
   const now = Date.now();
-  let ms = now - active.since;
+  const ms = now - active.since;
   active.since = now;
-  if (ms < MIN_RECORD_MS) return;
-  if (ms > MAX_GAP_MS) ms = TICK_MS;
+  if (ms < MIN_RECORD_MS || ms > SUSPEND_GAP_MS) return;
 
   const key = todayKey();
   let day = pending.get(key);
