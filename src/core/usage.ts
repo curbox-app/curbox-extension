@@ -12,6 +12,15 @@ interface ActiveState {
 
 const MIN_RECORD_MS = 1000;
 
+// The tick alarm folds time in every 30s, and every focus/visibility change does
+// too, so a healthy gap between accumulations is small. A gap far larger than a
+// tick means the worker or the whole machine was suspended (system sleep, lid
+// close, heavy throttling) with no events firing. We can't claim the user was
+// present through that, so we cap the contribution to a single tick rather than
+// banking the entire span.
+const TICK_MS = 30_000;
+const MAX_GAP_MS = TICK_MS * 2;
+
 let active: ActiveState | null = null;
 let counting = false;
 let windowFocused = true;
@@ -31,9 +40,10 @@ function shouldCount(): boolean {
 function accumulate(): void {
   if (!active) return;
   const now = Date.now();
-  const ms = now - active.since;
+  let ms = now - active.since;
   active.since = now;
   if (ms < MIN_RECORD_MS) return;
+  if (ms > MAX_GAP_MS) ms = TICK_MS;
 
   const key = todayKey();
   let day = pending.get(key);

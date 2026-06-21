@@ -10,11 +10,17 @@ export default defineContentScript({
   main() {
     const overlay = createOverlay();
 
-    const reportVisibility = () => {
-      void sendToBackground({ type: "visibility", visible: document.visibilityState === "visible" });
+    // "Engaged" means the page is both on screen and the window holds OS focus.
+    // visibilitychange alone misses app switches: the tab stays "visible" when
+    // you move to another application, so we also gate on document.hasFocus().
+    const reportEngagement = () => {
+      const engaged = document.visibilityState === "visible" && document.hasFocus();
+      void sendToBackground({ type: "visibility", visible: engaged });
     };
-    document.addEventListener("visibilitychange", reportVisibility);
-    reportVisibility();
+    document.addEventListener("visibilitychange", reportEngagement);
+    window.addEventListener("focus", reportEngagement);
+    window.addEventListener("blur", reportEngagement);
+    reportEngagement();
 
     const reportNavigation = () => {
       void sendToBackground({ type: "navigated", url: location.href });
