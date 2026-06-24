@@ -1,0 +1,22 @@
+{
+  "passphrase": "correct horse battery staple",
+  "saltHex": "000102030405060708090a0b0c0d0e0f",
+  "params": {
+    "alg": "PBKDF2-HMAC-SHA256",
+    "iterations": 10000,
+    "hash": "SHA-256",
+    "dkLenBits": 256
+  },
+  "dekHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "wrapNonceHex": "aabbccddeeff001122334455",
+  "recordNonceHex": "0f0e0d0c0b0a090807060504",
+  "userId": "11111111-2222-3333-4444-555555555555",
+  "namespace": "ext_config",
+  "recordKey": "config",
+  "plaintext": "{\"groups\":[],\"focusGroups\":[]}",
+  "expected": {
+    "kekHex": "d9f95f65c2df9d285d26882300ca5be29e3ed500556663835c4c62e270515022",
+    "wrappedDekHex": "01aabbccddeeff00112233445522acc22ecffa4d1bb09431cb63812414bad9653d6b9b8db6ccd58e8cf6a077a5dbb210dba60d054ce0c6648ee2b2bb81",
+    "recordHex": "010f0e0d0c0b0a090807060504670eb31f59fc59b44c6b7f36f46ba64999acf36845e00741d953d5d0ef0a15c12cac04407b131a18d1e938380003"
+  }
+}

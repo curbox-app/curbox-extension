@@ -4,14 +4,16 @@ import { UsageView, ErrorBoundary } from "../../ui/components";
 import { GroupManager } from "../../ui/blocker";
 import { FocusPanel } from "../../ui/focus";
 import { AboutPanel } from "../../ui/about";
+import { AccountPanel } from "../../ui/account/AccountPanel";
 import type { Settings } from "../../lib/types";
 
-type Tab = "usage" | "website" | "focus" | "about";
+type Tab = "usage" | "website" | "focus" | "sync" | "about";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
   { value: "website", label: "Website Blocker" },
   { value: "focus", label: "Focus" },
+  { value: "sync", label: "Sync" },
   { value: "about", label: "About" },
 ];
 
@@ -73,6 +75,7 @@ export function App() {
               onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
             />
           )}
+          {tab === "sync" && <AccountPanel />}
           {tab === "about" && <AboutPanel />}
         </div>
       </ErrorBoundary>

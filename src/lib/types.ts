@@ -67,6 +67,12 @@ export interface FocusGroup {
   domains: string[];
   mode: FocusMode;
   exitable: boolean; // "Let me quit mid sessions"
+  // Carried for cross device sync but not enforced in the browser. A focus group
+  // made on Android can also block apps and flip Do Not Disturb; the browser
+  // keeps those values untouched so editing the group here does not wipe them on
+  // the phone.
+  packages?: string[];
+  autoTurnOnDnd?: boolean;
 }
 
 export interface FocusSession {
@@ -156,5 +162,7 @@ export function newFocusGroup(name: string): FocusGroup {
     domains: [],
     mode: "only-these",
     exitable: true,
+    packages: [],
+    autoTurnOnDnd: false,
   };
 }

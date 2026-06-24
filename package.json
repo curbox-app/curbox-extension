@@ -12,13 +12,18 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "test": "vitest run",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "vitest": "^2.1.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/chrome": "^0.0.287",
     "@types/react": "^19.0.0",

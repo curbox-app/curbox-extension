@@ -33,6 +33,25 @@ export async function set<K extends keyof StoreShape>(key: K, value: StoreShape[
   await browser.storage.local.set({ [key]: value });
 }
 
+// The sync engine applies remote changes through this so it can recognise its
+// own writes and avoid pushing them straight back up (echo suppression).
+let applyingRemote = 0;
+
+export async function setFromRemote<K extends keyof StoreShape>(key: K, value: StoreShape[K]): Promise<void> {
+  applyingRemote++;
+  try {
+    await set(key, value);
+  } finally {
+    queueMicrotask(() => {
+      applyingRemote = Math.max(0, applyingRemote - 1);
+    });
+  }
+}
+
+export function isApplyingRemote(): boolean {
+  return applyingRemote > 0;
+}
+
 export async function update<K extends keyof StoreShape>(
   key: K,
   mutate: (current: StoreShape[K]) => StoreShape[K],
