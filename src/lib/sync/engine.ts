@@ -32,7 +32,6 @@ import {
   setVaultMeta,
   type VaultMeta,
 } from "./local";
-import { mergeUsage } from "./merge";
 import {
   canonicalFocusGroupJson,
   NS_EXT_CONFIG,
@@ -68,6 +67,7 @@ export class SyncEngine {
   private usagePushTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConfigJson: string | null = null; // echo suppression for config
   private lastFocusJson: string | null = null; // echo suppression for focus
+  private lastUsageJson: string | null = null; // dedup: skip re-pushing an unchanged day
   // Last synced canonical JSON per focus group id, so we only push real changes
   // and never bounce an applied remote group straight back up.
   private focusGroupShadow = new Map<string, string>();
@@ -174,6 +174,7 @@ export class SyncEngine {
     await clearSyncState();
     this.lastConfigJson = null;
     this.lastFocusJson = null;
+    this.lastUsageJson = null;
     this.focusGroupShadow.clear();
     this.lastSync = null;
     this.pendingEmail = null;
@@ -368,6 +369,7 @@ export class SyncEngine {
         }
       }
       if (usageChanged) {
+        this.pruneOldUsage(remoteUsage);
         await setRemoteUsage(remoteUsage);
         await this.publishRemoteUsage(remoteUsage);
       }
@@ -540,11 +542,22 @@ export class SyncEngine {
     const aad = recordAad(this.userId, NS_USAGE_WEB, row.record_key);
     const json = await decryptRecord(this.dek, aad, fromBase64Url(row.ciphertext));
     const p = JSON.parse(json) as UsageWebPayload;
-    // record_key is `${device_id}:${date}:${domain}`; store one slot per device
-    // so a device updating its own total overwrites rather than accumulates.
+    // One record carries a device's whole day. Replace that device's slots so
+    // removing a domain on the source device is reflected, never accumulated.
     const day = (into[p.date] ??= {});
-    day[`${row.device_id}|${p.domain}`] = { ms: p.ms, paths: p.paths ?? {} };
+    const prefix = `${row.device_id}|`;
+    for (const k of Object.keys(day)) if (k.startsWith(prefix)) delete day[k];
+    for (const [domain, du] of Object.entries(p.domains ?? {})) {
+      day[`${row.device_id}|${domain}`] = { ms: du.ms, paths: du.paths ?? {} };
+    }
     return true;
+  }
+
+  // Keep the cross device usage cache from growing without bound. Only recent
+  // days are shown, so older ones are dropped.
+  private pruneOldUsage(history: UsageHistory): void {
+    const cutoff = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+    for (const date of Object.keys(history)) if (date < cutoff) delete history[date];
   }
 
   // Collapse the per device remote slots into a domain keyed history and store
@@ -599,13 +612,16 @@ export class SyncEngine {
     const today = new Date().toISOString().slice(0, 10);
     const day = usage[today];
     if (!day) return;
-    for (const [domain, du] of Object.entries(day)) {
-      const payload: UsageWebPayload = { date: today, domain, ms: du.ms, paths: du.paths, platform: PLATFORM };
-      const recordKey = `${this.deviceId}:${today}:${domain}`;
-      const aad = recordAad(this.userId, NS_USAGE_WEB, recordKey);
-      const blob = await encryptRecord(this.dek, aad, JSON.stringify(payload));
-      await this.upsertRecord(NS_USAGE_WEB, recordKey, blob);
-    }
+    const domains: UsageWebPayload["domains"] = {};
+    for (const [domain, du] of Object.entries(day)) domains[domain] = { ms: du.ms, paths: du.paths };
+    const payload: UsageWebPayload = { date: today, platform: PLATFORM, domains };
+    const json = JSON.stringify(payload);
+    if (json === this.lastUsageJson) return; // nothing changed since the last push
+    this.lastUsageJson = json;
+    const recordKey = `${this.deviceId}:${today}`;
+    const aad = recordAad(this.userId, NS_USAGE_WEB, recordKey);
+    const blob = await encryptRecord(this.dek, aad, json);
+    await this.upsertRecord(NS_USAGE_WEB, recordKey, blob);
   }
 
   private async upsertRecord(

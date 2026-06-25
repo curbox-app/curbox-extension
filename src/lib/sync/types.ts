@@ -47,14 +47,13 @@ export interface SyncStatus {
   pendingEmail: string | null; // set when an emailed code is awaited
 }
 
-// One website usage record, per device per day per domain. Reading sums these
-// across devices so a browser shows time spent on its sibling devices too.
+// One website usage record per device per day. The whole day's domains travel in
+// a single record so a busy day is one row instead of hundreds. Reading sums
+// these across devices so a browser shows time spent on its sibling devices too.
 export interface UsageWebPayload {
   date: string;
-  domain: string;
-  ms: number;
-  paths?: Record<string, number>;
   platform: string;
+  domains: Record<string, { ms: number; paths?: Record<string, number> }>;
 }
 
 // Messages the options page sends to the background sync engine.
