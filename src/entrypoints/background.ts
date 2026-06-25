@@ -8,7 +8,7 @@ import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
 import { clearOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
-import { persist, startTracking, stopTracking, setWindowFocused, setPageVisible } from "../core/usage";
+import { persist, startTracking, stopTracking, setWindowFocused, setPageVisible, setMachineActive } from "../core/usage";
 import { getSyncEngine } from "../lib/sync/engine";
 import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
 
@@ -155,12 +155,26 @@ function scheduleGrantEnd(grants: Record<string, number>): void {
   if (upcoming.length > 0) browser.alarms.create("grant-end", { when: Math.min(...upcoming) });
 }
 
+// The OS tells us directly when the machine goes idle or the screen locks (lid
+// close, walking away, sleep). "active" is the only state where the user is
+// truly present, so anything else stops the usage clock at once.
+function applyIdleState(state: "active" | "idle" | "locked"): void {
+  setMachineActive(state === "active");
+}
+
 export default defineBackground(() => {
   void sync.start();
+
+  // Smallest interval the API allows, so a closed lid stops counting promptly.
+  browser.idle.setDetectionInterval(15);
+  browser.idle.onStateChanged.addListener(applyIdleState);
+  void browser.idle.queryState(15).then(applyIdleState);
 
   browser.alarms.create("tick", { periodInMinutes: 0.5 });
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "tick") {
+      // Re-query heals any state change the worker missed while it was asleep.
+      void browser.idle.queryState(15).then(applyIdleState);
       void persist();
       void evaluateFocused();
       void sync.pullSinceCursor();

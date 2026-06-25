@@ -10,7 +10,7 @@ export default defineConfig({
   manifest: {
     name: "Curbox",
     description: "A calm companion that helps you stay conscious of your time online.",
-    permissions: ["storage", "tabs", "alarms"],
+    permissions: ["storage", "tabs", "alarms", "idle"],
     host_permissions: ["<all_urls>"],
     web_accessible_resources: [
       {

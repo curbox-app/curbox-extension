@@ -12,29 +12,32 @@ interface ActiveState {
 
 const MIN_RECORD_MS = 1000;
 
-// While counting, time is folded in on every tick (~30-60s, browsers clamp the
-// alarm) plus every focus/visibility change, so the gap between accumulations is
-// always small. A gap of minutes can only happen if the worker stayed alive yet
-// stopped ticking, which means the whole process was frozen: system sleep, lid
-// close, or hibernation. (A normal worker shutdown resets `active` to null, so
-// it re-baselines on wake and never produces such a gap.) The user was not there
-// during a freeze, so that span is discarded rather than banked as usage. The
-// threshold sits well above any real tick to avoid clipping genuine time.
+// Fallback only. The OS idle gate below is the real defence against banking time
+// while the user is away; this catches the one case it cannot: the worker being
+// frozen mid-life (system sleep, lid close, hibernation) so no idle event ever
+// fires. On resume the next accumulate sees a gap far larger than any real tick
+// (~30-60s, browsers clamp the alarm), proving the process was suspended, so that
+// span is discarded rather than banked. (A normal worker shutdown resets `active`
+// to null and re-baselines on wake, so it never produces such a gap.)
 const SUSPEND_GAP_MS = 3 * 60_000;
 
 let active: ActiveState | null = null;
 let counting = false;
 let windowFocused = true;
 let pageVisible = true;
+// Mirrors chrome.idle: false the moment the OS reports the machine idle or
+// locked (screen off, lid closed, user walked away). This is ground truth from
+// the operating system, not a guess, so a closed lid stops counting at once.
+let machineActive = true;
 
 // Unpersisted deltas, grouped day -> domain -> usage. Drained on each tick so
 // frequent tab/visibility changes only touch memory, never storage.
 let pending = new Map<DateKey, DayUsage>();
 
-// We only count time while the active tab is the focused window AND the page is
-// reporting itself visible to the user.
+// We only count time while the active tab is the focused window, the page is
+// reporting itself visible, AND the OS says the machine is in active use.
 function shouldCount(): boolean {
-  return active !== null && windowFocused && pageVisible;
+  return active !== null && windowFocused && pageVisible && machineActive;
 }
 
 // Fold the time elapsed since the current window started into the buffer.
@@ -89,6 +92,12 @@ export function setWindowFocused(value: boolean): void {
 export function setPageVisible(value: boolean): void {
   if (value === pageVisible) return;
   pageVisible = value;
+  sync();
+}
+
+export function setMachineActive(value: boolean): void {
+  if (value === machineActive) return;
+  machineActive = value;
   sync();
 }
 

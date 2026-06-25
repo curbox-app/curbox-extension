@@ -84,6 +84,6 @@ Issues, ideas, and pull requests are all welcome. See **[CONTRIBUTING.md](CONTRI
 
 <div align="center">
 
-Made by [Nethical](https://github.com/curbox-app) · Take your time back.
+Made by [Nethical](https://github.com/nethical6) 
 
 </div>
