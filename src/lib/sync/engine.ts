@@ -17,6 +17,7 @@ import {
   parsePairingPayload,
 } from "../crypto";
 import { getSupabase } from "../supabase";
+import { dateKey, todayKey } from "../time";
 import { get, isApplyingRemote, setFromRemote, watch } from "../storage";
 import type { FocusGroup, FocusMode, FocusSession, Settings, UsageHistory } from "../types";
 import {
@@ -556,7 +557,7 @@ export class SyncEngine {
   // Keep the cross device usage cache from growing without bound. Only recent
   // days are shown, so older ones are dropped.
   private pruneOldUsage(history: UsageHistory): void {
-    const cutoff = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+    const cutoff = dateKey(new Date(Date.now() - 14 * 86_400_000));
     for (const date of Object.keys(history)) if (date < cutoff) delete history[date];
   }
 
@@ -609,7 +610,9 @@ export class SyncEngine {
   private async pushUsage(): Promise<void> {
     if (!this.dek || !this.userId || !this.deviceId) return;
     const usage = await get("usage");
-    const today = new Date().toISOString().slice(0, 10);
+    // Key by local day, the same boundary the tracker and blocker use, so we
+    // never push the wrong calendar day in the hours either side of UTC midnight.
+    const today = todayKey();
     const day = usage[today];
     if (!day) return;
     const domains: UsageWebPayload["domains"] = {};

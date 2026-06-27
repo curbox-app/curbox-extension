@@ -11,6 +11,13 @@ export function todayKey(): DateKey {
   return dateKey();
 }
 
+// Epoch ms of the next local midnight after `d`. Used to split a usage span at
+// the day boundary so time lands on the day it actually happened on. Going
+// through the Date constructor keeps it correct across DST shifts.
+export function startOfNextLocalDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0).getTime();
+}
+
 export function lastNDays(n: number, end = new Date()): DateKey[] {
   const keys: DateKey[] = [];
   for (let i = n - 1; i >= 0; i--) {
