@@ -49,6 +49,15 @@ export function weekRangeLabel(keys: DateKey[]): string {
   return `${fmt(keys[0])} to ${fmt(keys[keys.length - 1])}`;
 }
 
+// Header eyebrow above the big total, mirroring Android's date_sublabel:
+// "Total today" for today, otherwise "Total · Mar 15". Uppercased by the
+// `.label` utility at the render site.
+export function totalSublabel(key: DateKey): string {
+  if (key === todayKey()) return "Total today";
+  const [, m, d] = key.split("-").map(Number);
+  return `Total · ${MONTHS[m - 1]} ${d}`;
+}
+
 export const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -87,6 +96,17 @@ export function msToHuman(ms: number): string {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m`;
   return `${s}s`;
+}
+
+// Compact duration for the big total and list rows, mirroring Android's
+// formatTimeForWidget: "2h 30m" / "45m" / "<1m" for anything under a minute.
+export function msToWidget(ms: number): string {
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return `${m}m`;
+  return "<1m";
 }
 
 export function msToClock(ms: number): string {

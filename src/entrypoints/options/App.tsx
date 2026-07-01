@@ -34,16 +34,8 @@ export function App() {
   };
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-7 px-6 py-14">
-      <header>
-        <div className="flex items-center gap-2.5">
-          <h1 className="font-display text-5xl leading-none">Curbox</h1>
-          <span className="mt-1 h-2 w-2 animate-pulse rounded-full bg-ink/40" />
-        </div>
-        <p className="mt-2 text-sm text-muted">break the doomscroll</p>
-      </header>
-
-      <nav className="-mt-1 flex gap-1 border-b border-line">
+    <div className="mx-auto flex max-w-xl flex-col gap-7 px-6 py-12">
+      <nav className="flex gap-1 border-b border-line">
         {TABS.map((t) => (
           <button
             key={t.value}

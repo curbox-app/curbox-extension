@@ -1,7 +1,9 @@
-import { Component, useMemo, useState, type ReactNode } from "react";
+import { browser } from "#imports";
+import { Component, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { DateKey, UsageHistory } from "../lib/types";
-import { DAY_LABELS, dayLabel, friendlyDate, msToHuman, todayKey, weekKeys, weekRangeLabel } from "../lib/time";
+import { DAY_LABELS, dayLabel, msToWidget, todayKey, totalSublabel, weekKeys, weekRangeLabel } from "../lib/time";
 import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
+import { randomAscii } from "../lib/ascii";
 
 // Shared button and input recipes so every screen stays visually in sync.
 export const btnPrimary =
@@ -14,26 +16,71 @@ export const inputCls =
 export const selectCls =
   "w-full bg-transparent border-b border-line py-1.5 text-sm transition-colors focus:outline-none focus:border-ink";
 
-export function Stat({ label, ms }: { label: string; ms: number }) {
+// The big total at the top of the usage screen, sat over the faint Braille
+// wallpaper, mirroring the Android AllAppsUsage header (date_sublabel + total).
+function UsageHeader({ subLabel, ms }: { subLabel: string; ms: number }) {
   return (
-    <div className="relative flex flex-col items-center overflow-hidden pt-7 pb-3 text-center">
-      <div className="bloom" aria-hidden="true" />
-      <span className="label relative">{label}</span>
-      <span className="font-display tnum relative mt-3 text-[76px] leading-[0.78] tracking-tight">{msToHuman(ms)}</span>
+    <div className="flex flex-col items-center pb-2 pt-16 text-center">
+      <span className="label">{subLabel}</span>
+      <span className="font-display tnum mt-2 text-[56px] font-bold leading-[0.85] tracking-tight text-ink">
+        {msToWidget(ms)}
+      </span>
     </div>
   );
 }
 
-function Chevron({ open }: { open: boolean }) {
+// Faint Braille wallpaper behind the whole usage screen. It is never clipped:
+// it scales down to fit the width, and being absolutely positioned it flows
+// freely below the header behind the graph and list rather than being cropped.
+function AsciiWatermark({ ascii }: { ascii: string }) {
+  const ref = useRef<HTMLPreElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return;
+    const natural = el.scrollWidth;
+    const avail = parent.clientWidth;
+    setScale(natural > avail ? avail / natural : 1);
+  }, [ascii]);
+
   return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      className={`shrink-0 text-faint transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-    >
-      <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center">
+      <pre
+        ref={ref}
+        aria-hidden="true"
+        style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}
+        className="m-0 w-max select-none whitespace-pre text-center font-mono text-[7px] leading-[0.85] text-faint opacity-50"
+      >
+        {ascii}
+      </pre>
+    </div>
+  );
+}
+
+// 40px site favicon via the Chromium _favicon API, falling back to a letter
+// monogram (also the Firefox path, which lacks _favicon).
+function Favicon({ domain }: { domain: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className="font-display grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-surface-2 text-lg leading-none text-muted">
+        {domain[0]?.toUpperCase() ?? "?"}
+      </span>
+    );
+  }
+  const base = (browser.runtime.getURL as (p: string) => string)("/_favicon/");
+  const src = `${base}?pageUrl=${encodeURIComponent(`https://${domain}`)}&size=64`;
+  return (
+    <img
+      src={src}
+      alt=""
+      width={40}
+      height={40}
+      onError={() => setFailed(true)}
+      className="h-10 w-10 shrink-0 rounded-[10px] bg-surface-2 object-contain"
+    />
   );
 }
 
@@ -50,37 +97,38 @@ function WeeklyBarGraph({
 }) {
   const totals = keys.map((k) => dayTotal(usage, k));
   const max = Math.max(1, ...totals);
+  const barArea = 132; // px of drawable height above the day labels
   return (
-    <div className="relative h-32">
-      <div className="flex h-full items-end justify-between gap-1.5 pb-6">
+    // Bars occupy the centered middle ~85% of the width, like WeeklyBarGraphView.
+    <div className="flex h-[180px] flex-col px-[7.5%]">
+      <div className="flex flex-1 items-end justify-between gap-2">
         {keys.map((key, i) => {
           const active = key === selected;
           const has = totals[i] > 0;
-          const height = has ? Math.max(8, Math.round((totals[i] / max) * 84)) : 3;
+          const height = has ? Math.max(6, Math.round((totals[i] / max) * barArea)) : 0;
           return (
             <button
               key={key}
               onClick={() => onSelect(key)}
-              aria-label={`${dayLabel(key)} ${msToHuman(totals[i])}`}
+              aria-label={`${dayLabel(key)} ${msToWidget(totals[i])}`}
               className="group flex h-full flex-1 items-end justify-center"
             >
               <div
                 style={{ height }}
-                className={`w-full max-w-[13px] rounded-full transition-all duration-300 ease-out ${
-                  active ? "bg-ink" : has ? "bg-line group-hover:bg-faint" : "bg-line/50"
+                className={`w-full max-w-[12px] rounded-[6px] transition-all duration-300 ease-out ${
+                  active ? "bg-ink" : "bg-ink/35 group-hover:bg-ink/55"
                 }`}
               />
             </button>
           );
         })}
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 h-px bg-line/70" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-between gap-1.5">
+      <div className="mt-2 flex justify-between gap-2">
         {keys.map((key) => (
           <span
             key={key}
             className={`flex-1 text-center text-[11px] transition-colors ${
-              key === selected ? "font-medium text-ink" : "text-faint"
+              key === selected ? "font-semibold text-ink" : "text-muted"
             }`}
           >
             {dayLabel(key)}
@@ -94,25 +142,29 @@ function WeeklyBarGraph({
 function DomainItem({ row }: { row: DomainRow }) {
   const [open, setOpen] = useState(false);
   const hasPaths = row.paths.length > 1;
+  const pages = row.paths.length === 1 ? "1 page" : `${row.paths.length} pages`;
+  const shown = row.paths.slice(0, 6);
   return (
-    <div className="border-b border-line/70 last:border-0">
+    <div>
       <button
-        className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-state"
+        className="-mx-1 flex w-full items-center gap-3.5 rounded-xl px-1 py-3 text-left transition-colors hover:bg-state"
         onClick={() => hasPaths && setOpen((v) => !v)}
       >
-        <span className="font-display grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-lg leading-none text-muted">
-          {row.domain[0]?.toUpperCase() ?? "?"}
+        <Favicon domain={row.domain} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm text-ink">{row.domain}</span>
+          <span className="label mt-0.5">{pages}</span>
         </span>
-        <span className="flex-1 truncate text-sm">{row.domain}</span>
-        {hasPaths && <Chevron open={open} />}
-        <span className="tnum shrink-0 text-sm text-muted">{msToHuman(row.ms)}</span>
+        <span className="tnum shrink-0 text-sm text-muted">{msToWidget(row.ms)}</span>
       </button>
       {open && (
-        <div className="flex flex-col gap-1.5 pb-3 pl-12 pr-2">
-          {row.paths.slice(0, 6).map((p) => (
-            <div key={p.path} className="flex items-center justify-between text-xs text-muted">
-              <span className="truncate pr-3">{p.path}</span>
-              <span className="tnum shrink-0">{msToHuman(p.ms)}</span>
+        <div className="flex flex-col gap-1 pb-2 pl-[54px] pr-1">
+          {shown.map((p, i) => (
+            <div key={p.path} className="flex items-center gap-2 font-mono text-xs text-muted">
+              <span className="shrink-0 text-faint">{i === shown.length - 1 ? "└" : "├"}</span>
+              <span className="truncate">{p.path}</span>
+              <span className="text-faint">•</span>
+              <span className="tnum ml-auto shrink-0">{msToWidget(p.ms)}</span>
             </div>
           ))}
         </div>
@@ -155,26 +207,27 @@ export function UsageView({ usage }: { usage: UsageHistory }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selected, setSelected] = useState(todayKey());
   const keys = useMemo(() => weekKeys(weekOffset), [weekOffset]);
+  const ascii = useMemo(() => randomAscii(), []);
 
   const rows = useMemo(() => domainsForDay(usage, selected), [usage, selected]);
   const total = useMemo(() => rows.reduce((s, r) => s + r.ms, 0), [rows]);
   const isToday = selected === todayKey();
 
   return (
-    <div className="rise flex flex-col gap-6">
-      <Stat label={isToday ? "Total today" : friendlyDate(selected)} ms={total} />
-      <div className="card px-4 pb-3 pt-4">
-        <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
-        <div className="mt-1 flex items-center justify-center gap-2 text-xs text-muted">
-          <NavBtn onClick={() => setWeekOffset((o) => o + 1)}>‹</NavBtn>
-          <span className="tnum min-w-[150px] text-center">{weekRangeLabel(keys)}</span>
-          <NavBtn onClick={() => setWeekOffset((o) => Math.max(0, o - 1))} disabled={weekOffset === 0}>
-            ›
-          </NavBtn>
+    <div className="rise relative">
+      <AsciiWatermark ascii={ascii} />
+      <div className="relative z-10 flex flex-col gap-7">
+        <UsageHeader subLabel={totalSublabel(selected)} ms={total} />
+        <div>
+          <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
+          <div className="mt-3 flex items-center justify-center gap-2 text-xs text-muted">
+            <NavBtn onClick={() => setWeekOffset((o) => o + 1)}>‹</NavBtn>
+            <span className="tnum min-w-[150px] text-center">{weekRangeLabel(keys)}</span>
+            <NavBtn onClick={() => setWeekOffset((o) => Math.max(0, o - 1))} disabled={weekOffset === 0}>
+              ›
+            </NavBtn>
+          </div>
         </div>
-      </div>
-      <div>
-        <p className="label mb-1">{isToday ? "Sites today" : "Sites"}</p>
         <DomainList
           rows={rows}
           emptyMessage={isToday ? "Nothing yet today. Enjoy the quiet." : "No sites recorded that day."}
