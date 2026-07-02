@@ -8,7 +8,15 @@ import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
 import { clearOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
-import { persist, startTracking, stopTracking, setWindowFocused, setPageVisible, setMachineActive } from "../core/usage";
+import {
+  persist,
+  startTracking,
+  stopTracking,
+  setWindowFocused,
+  setPageVisible,
+  setMachineState,
+  setTabAudible,
+} from "../core/usage";
 import { getSyncEngine } from "../lib/sync/engine";
 import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
 
@@ -112,9 +120,11 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
   }
   const decision = await decide(location);
   sendToTab(tabId, { type: "evaluate", decision });
-  if (makeActive) {
-    if (decision.blocked) stopTracking();
-    else startTracking(tabId, location);
+  // The decision is async: if focus moved to another tab meanwhile, a newer
+  // evaluation owns the tracker and this stale one must not steal it back.
+  if (makeActive && tabId === focusedTabId) {
+    if (decision.blocked) void stopTracking();
+    else void startTracking(tabId, location);
   }
 }
 
@@ -128,6 +138,7 @@ async function evaluateFocused(): Promise<void> {
   }
   try {
     const tab = await browser.tabs.get(focusedTabId);
+    void setTabAudible(tab.audible === true);
     await evaluateTab(focusedTabId, tab.url, true);
   } catch {
     focusedTabId = null;
@@ -156,10 +167,10 @@ function scheduleGrantEnd(grants: Record<string, number>): void {
 }
 
 // The OS tells us directly when the machine goes idle or the screen locks (lid
-// close, walking away, sleep). "active" is the only state where the user is
-// truly present, so anything else stops the usage clock at once.
+// close, walking away, sleep). The tracker stops the clock on anything but
+// "active", unless the tab is audibly playing, which proves passive use.
 function applyIdleState(state: "active" | "idle" | "locked"): void {
-  setMachineActive(state === "active");
+  void setMachineState(state);
 }
 
 export default defineBackground(() => {
@@ -188,6 +199,16 @@ export default defineBackground(() => {
   void activeSession().then(scheduleFocusEnd);
   void get("grants").then(scheduleGrantEnd);
 
+  // On worker start, recover the real focus state instead of assuming the
+  // user is present, then resume tracking right away rather than waiting up
+  // to a tick. The tracker restores its own in-flight state from
+  // storage.session before any of these apply.
+  void browser.windows
+    .getLastFocused()
+    .then((win) => setWindowFocused(win.focused === true))
+    .catch(() => {});
+  void evaluateFocused();
+
   watch((changed) => {
     if ("focus" in changed) {
       scheduleFocusEnd(changed.focus ?? null);
@@ -199,10 +220,16 @@ export default defineBackground(() => {
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
     focusedTabId = tabId;
-    void browser.tabs.get(tabId).then((tab) => evaluateTab(tabId, tab.url, true));
+    void browser.tabs.get(tabId).then((tab) => {
+      void setTabAudible(tab.audible === true);
+      return evaluateTab(tabId, tab.url, true);
+    });
   });
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.audible !== undefined && tabId === focusedTabId) {
+      void setTabAudible(changeInfo.audible);
+    }
     if (changeInfo.url) {
       const location = parseLocation(changeInfo.url);
       if (location) {
@@ -225,6 +252,7 @@ export default defineBackground(() => {
       const tab = tabs[0];
       if (tab?.id != null) {
         focusedTabId = tab.id;
+        void setTabAudible(tab.audible === true);
         void evaluateTab(tab.id, tab.url, true);
       }
     });

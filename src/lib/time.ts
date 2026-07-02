@@ -22,6 +22,9 @@ export function lastNDays(n: number, end = new Date()): DateKey[] {
   const keys: DateKey[] = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(end);
+    // Anchor at noon so a DST shift can never move a step across midnight and
+    // duplicate or skip a day in the graph.
+    d.setHours(12, 0, 0, 0);
     d.setDate(d.getDate() - i);
     keys.push(dateKey(d));
   }
