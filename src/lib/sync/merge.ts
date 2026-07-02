@@ -1,8 +1,5 @@
 import type { DomainUsage, UsageHistory } from "../types";
 
-// Adds two usage histories together. Used to fold other devices' synced usage
-// into this device's own for a unified view. Each device owns its records so
-// there is never double counting.
 export function mergeUsage(a: UsageHistory, b: UsageHistory): UsageHistory {
   const out: UsageHistory = structuredClone(a);
   for (const [date, day] of Object.entries(b)) {

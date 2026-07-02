@@ -1,7 +1,6 @@
 import type { SiteLocation } from "./url";
 import { domainMatches } from "./url";
 
-// Mirrors the Android keyword syntax (see keyword-blocker docs):
 //   youtube.com            whole site
 //   youtube.com/shorts     one section
 //   /shorts                a path on any site

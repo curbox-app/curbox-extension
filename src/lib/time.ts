@@ -11,9 +11,6 @@ export function todayKey(): DateKey {
   return dateKey();
 }
 
-// Epoch ms of the next local midnight after `d`. Used to split a usage span at
-// the day boundary so time lands on the day it actually happened on. Going
-// through the Date constructor keeps it correct across DST shifts.
 export function startOfNextLocalDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0).getTime();
 }
@@ -22,8 +19,6 @@ export function lastNDays(n: number, end = new Date()): DateKey[] {
   const keys: DateKey[] = [];
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(end);
-    // Anchor at noon so a DST shift can never move a step across midnight and
-    // duplicate or skip a day in the graph.
     d.setHours(12, 0, 0, 0);
     d.setDate(d.getDate() - i);
     keys.push(dateKey(d));
@@ -35,7 +30,6 @@ export function weekOf(end: Date): DateKey[] {
   return lastNDays(7, end);
 }
 
-// Seven day keys for a week ending `offset` weeks before today (0 = this week).
 export function weekKeys(offset: number): DateKey[] {
   const end = new Date();
   end.setDate(end.getDate() - offset * 7);
@@ -52,9 +46,6 @@ export function weekRangeLabel(keys: DateKey[]): string {
   return `${fmt(keys[0])} to ${fmt(keys[keys.length - 1])}`;
 }
 
-// Header eyebrow above the big total, mirroring Android's date_sublabel:
-// "Total today" for today, otherwise "Total · Mar 15". Uppercased by the
-// `.label` utility at the render site.
 export function totalSublabel(key: DateKey): string {
   if (key === todayKey()) return "Total today";
   const [, m, d] = key.split("-").map(Number);
@@ -70,7 +61,6 @@ export function dayLabel(key: DateKey): string {
   return DAY_LABELS[new Date(y, m - 1, d).getDay()];
 }
 
-// A readable single date, e.g. "Mon, Jun 15", for past days shown to the user.
 export function friendlyDate(key: DateKey): string {
   const [y, m, d] = key.split("-").map(Number);
   return `${WEEKDAYS[new Date(y, m - 1, d).getDay()]}, ${MONTHS[m - 1]} ${d}`;
@@ -101,8 +91,6 @@ export function msToHuman(ms: number): string {
   return `${s}s`;
 }
 
-// Compact duration for the big total and list rows, mirroring Android's
-// formatTimeForWidget: "2h 30m" / "45m" / "<1m" for anything under a minute.
 export function msToWidget(ms: number): string {
   const totalMin = Math.floor(ms / 60000);
   const h = Math.floor(totalMin / 60);

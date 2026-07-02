@@ -15,9 +15,6 @@ import {
   type KdfParams,
 } from "./crypto";
 
-// Fixed inputs shared byte for byte with Android's CryptoBoxTest. Iterations
-// are kept low here only so the parity vectors are cheap to compute; production
-// uses DEFAULT_KDF_PARAMS (600k).
 const VECTORS = {
   passphrase: "correct horse battery staple",
   saltHex: "000102030405060708090a0b0c0d0e0f",
@@ -57,11 +54,9 @@ describe("crypto parity vectors", () => {
       recordHex: toHex(record),
     };
 
-    // Round trips must succeed.
     expect(toHex(await unwrapDEK(kek, wrapped, VECTORS.userId))).toBe(VECTORS.dekHex);
     expect(await decryptRecord(dekKey, aad, record)).toBe(VECTORS.plaintext);
 
-    // Emit the canonical vectors so the Android test asserts the same bytes.
     const out = { ...VECTORS, expected };
     writeFileSync(
       fileURLToPath(new URL("./crypto.vectors.json", import.meta.url)),

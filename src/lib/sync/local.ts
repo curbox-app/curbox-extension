@@ -2,17 +2,11 @@ import { browser } from "#imports";
 import type { KdfParams } from "../crypto";
 import type { UsageHistory } from "../types";
 
-// Device local sync state. These keys live alongside the app data in
-// storage.local but are never uploaded. The DEK in particular must never leave
-// this device through any sync namespace.
 const K_DEVICE_ID = "sync.deviceId";
 const K_CURSOR = "sync.cursor";
-const K_DEK = "sync.dek"; // base64url of the raw 32 byte data key
+const K_DEK = "sync.dek";
 const K_VAULT = "sync.vaultMeta";
 const K_REMOTE_USAGE = "sync.remoteUsage";
-// The collapsed, UI facing view of other devices' usage. Written by the engine
-// and cleared on sign out so a signed out browser never shows another account's
-// numbers.
 const K_REMOTE_USAGE_VIEW = "sync.remoteUsageView";
 
 export interface VaultMeta {

@@ -1,14 +1,8 @@
 import { dateKey, startOfNextLocalDay } from "./time";
 import type { DateKey, DayUsage, DomainUsage, UsageHistory } from "./types";
 
-// How much history stays on this device. Bounds the object persist() rewrites
-// every tick so it cannot grow without limit; 90 days covers ~12 weeks of the
-// weekly graph.
 export const RETENTION_DAYS = 90;
 
-// Ceiling on distinct paths remembered per domain per day. Beyond it the
-// smallest slices fold into "/", so the domain total (which usage limits are
-// judged against) stays exact even on sites that mint a new path per page.
 export const MAX_PATHS_PER_DOMAIN = 200;
 
 export function addUsage(day: DayUsage, domain: string, path: string, ms: number): void {
@@ -17,9 +11,6 @@ export function addUsage(day: DayUsage, domain: string, path: string, ms: number
   entry.paths[path] = (entry.paths[path] ?? 0) + ms;
 }
 
-// Split [from, to) into one slice per local day, so a span that straddles
-// midnight credits each day with exactly the time that fell on it. Goes
-// through startOfNextLocalDay, which keeps the boundary correct across DST.
 export function sliceSpanByDay(from: number, to: number): Array<{ key: DateKey; ms: number }> {
   const slices: Array<{ key: DateKey; ms: number }> = [];
   let start = from;
@@ -34,8 +25,6 @@ export function sliceSpanByDay(from: number, to: number): Array<{ key: DateKey; 
   return slices;
 }
 
-// Merge buffered deltas into the stored history without mutating it, dropping
-// days past retention and capping per domain path detail.
 export function mergeUsage(
   base: UsageHistory,
   deltas: Iterable<[DateKey, DayUsage]>,

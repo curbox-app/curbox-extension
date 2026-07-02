@@ -21,7 +21,6 @@ const STYLE = `
   .breath { border-color: rgba(237, 236, 233, 0.45); }
   .breath::before { border-color: rgba(237, 236, 233, 0.16); }
   .breath span { color: rgba(237, 236, 233, 0.62); }
-  .ghost { color: rgba(237, 236, 233, 0.55); }
   input, textarea { color: #edece9; border-color: rgba(237,236,233,0.28); }
 }
 .card {
@@ -121,13 +120,7 @@ button {
   min-width: 220px;
 }
 .primary:disabled { opacity: 0.4; cursor: default; }
-.ghost {
-  border: none;
-  background: none;
-  color: rgba(26, 25, 23, 0.55);
-  padding: 8px;
-}
-.ghost:hover { opacity: 0.7; }
+
 `;
 
 function makePrimary(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
@@ -217,11 +210,9 @@ export function createOverlay(): Overlay {
         </div>
         <p class="message">${escapeHtml(decision.message)}</p>
         <div class="body"></div>
-        <button class="ghost">Take me somewhere calmer</button>
       </div>`;
     shadow.appendChild(root);
     requestAnimationFrame(() => root.classList.add("visible"));
-    root.querySelector<HTMLButtonElement>(".ghost")!.onclick = handlers.onLeave;
     root.querySelector<HTMLElement>(".card")!.focus();
     trapFocus(root, shadow, handlers.onLeave);
 

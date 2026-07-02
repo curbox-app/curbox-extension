@@ -68,8 +68,6 @@ async function handleSync(req: SyncRequest): Promise<SyncResponse> {
   }
 }
 
-// Turns raw server and network errors into calm, plain language so the account
-// panel never shows a scary technical string.
 function friendlyError(err: unknown): string {
   const raw = String((err as Error)?.message ?? err ?? "");
   const m = raw.toLowerCase();

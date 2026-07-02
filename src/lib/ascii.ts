@@ -1,5 +1,3 @@
-// Braille ASCII art copied verbatim from the Android app's res/values/strings.xml
-// (ascii_star1..5, ascii_brain, ascii_aim, ascii_kitty). Used as the faint
 // decorative wallpaper behind the usage header, mirroring AllAppsUsageFragment.
 
 export const ASCII_ART: string[] = [

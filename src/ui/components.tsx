@@ -5,7 +5,6 @@ import { DAY_LABELS, dayLabel, msToWidget, todayKey, totalSublabel, weekKeys, we
 import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
 import { randomAscii } from "../lib/ascii";
 
-// Shared button and input recipes so every screen stays visually in sync.
 export const btnPrimary =
   "inline-flex items-center justify-center gap-2 rounded-pill bg-ink px-6 py-2.5 text-sm font-medium text-bg shadow-soft transition-all duration-200 ease-out hover:shadow-float hover:-translate-y-px active:translate-y-0 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0";
 export const btnOutline =
@@ -16,8 +15,6 @@ export const inputCls =
 export const selectCls =
   "w-full bg-transparent border-b border-line py-1.5 text-sm transition-colors focus:outline-none focus:border-ink";
 
-// The big total at the top of the usage screen, sat over the faint Braille
-// wallpaper, mirroring the Android AllAppsUsage header (date_sublabel + total).
 function UsageHeader({ subLabel, ms }: { subLabel: string; ms: number }) {
   return (
     <div className="flex flex-col items-center pb-2 pt-16 text-center">
@@ -29,9 +26,6 @@ function UsageHeader({ subLabel, ms }: { subLabel: string; ms: number }) {
   );
 }
 
-// Faint Braille wallpaper behind the whole usage screen. It is never clipped:
-// it scales down to fit the width, and being absolutely positioned it flows
-// freely below the header behind the graph and list rather than being cropped.
 function AsciiWatermark({ ascii }: { ascii: string }) {
   const ref = useRef<HTMLPreElement>(null);
   const [scale, setScale] = useState(1);
@@ -59,8 +53,6 @@ function AsciiWatermark({ ascii }: { ascii: string }) {
   );
 }
 
-// 40px site favicon via the Chromium _favicon API, falling back to a letter
-// monogram (also the Firefox path, which lacks _favicon).
 function Favicon({ domain }: { domain: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
@@ -99,7 +91,6 @@ function WeeklyBarGraph({
   const max = Math.max(1, ...totals);
   const barArea = 132; // px of drawable height above the day labels
   return (
-    // Bars occupy the centered middle ~85% of the width, like WeeklyBarGraphView.
     <div className="flex h-[180px] flex-col px-[7.5%]">
       <div className="flex flex-1 items-end justify-between gap-2">
         {keys.map((key, i) => {
