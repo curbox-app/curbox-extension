@@ -8,6 +8,13 @@ export default defineContentScript({
   matches: ["<all_urls>"],
   runAt: "document_start",
   main() {
+    // We also inject this script on demand (see sendToTab) to reach tabs that
+    // predate the extension. Guard so a page that already has it never runs
+    // twice and stacks two overlays.
+    const marker = "__curboxContentLoaded";
+    if ((window as unknown as Record<string, boolean>)[marker]) return;
+    (window as unknown as Record<string, boolean>)[marker] = true;
+
     const overlay = createOverlay();
 
     const reportEngagement = () => {
