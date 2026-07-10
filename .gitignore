@@ -4,6 +4,7 @@ node_modules
 stats.html
 *.log
 .DS_Store
+package-lock.json
 
 # Ignore documentation and layout files
 CLAUDE.md
@@ -18,4 +19,3 @@ graphify-out
 .env.development.local
 .env.test.local
 .env.production.local
-

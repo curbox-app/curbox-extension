@@ -18,9 +18,6 @@ const STYLE = `
 .curbox-root.visible { opacity: 1; }
 @media (prefers-color-scheme: dark) {
   .curbox-root { background: #0b0b0c; color: #edece9; }
-  .breath { border-color: rgba(237, 236, 233, 0.45); }
-  .breath::before { border-color: rgba(237, 236, 233, 0.16); }
-  .breath span { color: rgba(237, 236, 233, 0.62); }
   input, textarea { color: #edece9; border-color: rgba(237,236,233,0.28); }
 }
 .card {
@@ -32,56 +29,8 @@ const STYLE = `
   gap: 26px;
   padding: 8px;
 }
-.breath {
-  position: relative;
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(26, 25, 23, 0.38);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: breathe 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.breath::before {
-  content: "";
-  position: absolute;
-  inset: -16px;
-  border-radius: 50%;
-  border: 1px solid rgba(26, 25, 23, 0.14);
-}
-.breath span {
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(26, 25, 23, 0.52);
-}
-.breath .cue { display: inline-grid; }
-.breath .cue > span {
-  grid-area: 1 / 1;
-  animation: cue-in 6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-}
-.breath .cue .out { animation-name: cue-out; }
-.breath .static { display: none; }
-@keyframes breathe {
-  0%, 100% { transform: scale(0.82); }
-  50% { transform: scale(1.12); }
-}
-@keyframes cue-in {
-  0%, 44% { opacity: 1; }
-  50%, 94% { opacity: 0; }
-  100% { opacity: 1; }
-}
-@keyframes cue-out {
-  0%, 44% { opacity: 0; }
-  50%, 94% { opacity: 1; }
-  100% { opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .curbox-root { transition: none; }
-  .breath { animation: none; transform: none; }
-  .breath .cue { display: none; }
-  .breath .static { display: inline; }
 }
 .message {
   font-size: 21px;
@@ -204,10 +153,6 @@ export function createOverlay(): Overlay {
     root.setAttribute("aria-label", "A mindful pause from Curbox");
     root.innerHTML = `
       <div class="card" tabindex="-1">
-        <div class="breath" aria-hidden="true">
-          <span class="cue"><span class="in">Breathe in</span><span class="out">Breathe out</span></span>
-          <span class="static">Breathe</span>
-        </div>
         <p class="message">${escapeHtml(decision.message)}</p>
         <div class="body"></div>
       </div>`;
