@@ -1,7 +1,8 @@
 import { dateKey, startOfNextLocalDay } from "./time";
 import type { DateKey, DayUsage, DomainUsage, UsageHistory } from "./types";
 
-export const RETENTION_DAYS = 90;
+// Usage older than four weeks is cleared automatically, on every platform.
+export const RETENTION_DAYS = 28;
 
 export const MAX_PATHS_PER_DOMAIN = 200;
 
