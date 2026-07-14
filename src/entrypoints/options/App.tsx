@@ -7,20 +7,21 @@ import { AboutPanel } from "../../ui/about";
 import { AccountPanel } from "../../ui/account/AccountPanel";
 import type { Settings } from "../../lib/types";
 
-type Tab = "usage" | "website" | "focus" | "sync" | "about";
+type Tab = "usage" | "focus" | "reducers" | "info";
+type ReducerPage = "website" | "sync" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
-  { value: "website", label: "Website Blocker" },
   { value: "focus", label: "Focus" },
-  { value: "sync", label: "Sync" },
-  { value: "about", label: "About" },
+  { value: "reducers", label: "Reducers" },
+  { value: "info", label: "Info" },
 ];
 
 export function App() {
   const { usage, settings, focus, focusLog, ready, saveSettings } = useCurbox();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>("usage");
+  const [reducerPage, setReducerPage] = useState<ReducerPage>(null);
 
   useEffect(() => {
     if (ready && !draft) setDraft(settings);
@@ -34,31 +35,11 @@ export function App() {
   };
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-7 px-6 py-12">
-      <nav className="flex gap-1 border-b border-line">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={`relative px-4 py-3 text-sm font-medium transition-colors ${
-              tab === t.value ? "text-ink" : "text-muted hover:text-ink"
-            }`}
-          >
-            {t.label}
-            {tab === t.value && <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-ink" />}
-          </button>
-        ))}
-      </nav>
-
-      <ErrorBoundary key={tab}>
-        <div className="rise">
+    <div className="mx-auto flex min-h-screen max-w-xl flex-col bg-bg">
+      <main className="flex-1 px-6 pb-28 pt-10">
+      <ErrorBoundary key={`${tab}:${reducerPage}`}>
+        <div className="tab-enter">
           {tab === "usage" && <UsageView usage={usage} />}
-          {tab === "website" && (
-            <>
-              <GroupManager groups={draft.groups} onChange={(groups) => commit({ ...draft, groups })} />
-              <KeywordHelp />
-            </>
-          )}
           {tab === "focus" && (
             <FocusPanel
               focus={focus}
@@ -67,10 +48,55 @@ export function App() {
               onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
             />
           )}
-          {tab === "sync" && <AccountPanel />}
-          {tab === "about" && <AboutPanel />}
+          {tab === "reducers" && reducerPage === null && <ReducersHome onOpen={setReducerPage} />}
+          {tab === "reducers" && reducerPage !== null && (
+            <>
+              <button className="mb-5 text-sm font-medium text-primary" onClick={() => setReducerPage(null)}>← Reducers</button>
+              {reducerPage === "website" ? (
+                <>
+                  <GroupManager groups={draft.groups} onChange={(groups) => commit({ ...draft, groups })} />
+                  <KeywordHelp />
+                </>
+              ) : <AccountPanel />}
+            </>
+          )}
+          {tab === "info" && <AboutPanel />}
         </div>
       </ErrorBoundary>
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-xl items-stretch justify-around border-t border-line bg-card pb-1 pt-2">
+        {TABS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => { setTab(t.value); if (t.value !== "reducers") setReducerPage(null); }}
+            className="flex flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium"
+          >
+            <span className={`flex h-8 w-16 items-center justify-center rounded-full text-lg ${tab === t.value ? "bg-secondary-chip text-on-secondary" : "text-faint"}`}>
+              {t.value === "usage" ? "▥" : t.value === "focus" ? "◷" : t.value === "reducers" ? "◒" : "ⓘ"}
+            </span>
+            <span className={tab === t.value ? "text-ink" : "text-faint"}>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) => void }) {
+  return (
+    <div className="flex flex-col gap-5">
+      <div><h1 className="font-display text-5xl text-ink">Reducers</h1><p className="mt-1 text-sm text-muted">Tools that make distracting browsing less rewarding.</p></div>
+      <p className="label">Blocker tools</p>
+      <button onClick={() => onOpen("website")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary-chip text-2xl text-on-secondary">⊘</span>
+        <span className="flex-1"><b className="block text-base text-ink">Website Blocker</b><small className="text-muted">Block sites by time, usage, or on each open</small></span><span className="text-faint">›</span>
+      </button>
+      <p className="label mt-3">Across devices</p>
+      <button onClick={() => onOpen("sync")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">↻</span>
+        <span className="flex-1"><b className="block text-base text-ink">Sync</b><small className="text-muted">Keep settings and usage in step</small></span><span className="text-faint">›</span>
+      </button>
     </div>
   );
 }
