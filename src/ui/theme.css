@@ -18,30 +18,54 @@
 }
 
 :root {
-  --bg: #f5f3ef;
-  --surface: #fdfcfa;
-  --surface-2: #efece6;
-  --ink: #1a1917;
-  --muted: #79746c;
-  --faint: #ada89f;
-  --line: #e7e3db;
-  --ring: rgba(26, 25, 23, 0.09);
-  --state: rgba(26, 25, 23, 0.05);
-  --shadow-soft: 0 1px 2px rgba(28, 25, 20, 0.04), 0 2px 10px -4px rgba(28, 25, 20, 0.08);
-  --shadow-float: 0 2px 6px -2px rgba(28, 25, 20, 0.1), 0 12px 30px -10px rgba(28, 25, 20, 0.16);
+  --bg: #f5fbf8;
+  --surface: #f5fbf8;
+  --surface-2: #eff5f2;
+  --card: #e9efec;
+  --accent: #9ff2e1;
+  --on-accent: #00201b;
+  --ink: #171d1b;
+  --muted: #3f4946;
+  --faint: #6f7976;
+  --line: #bec9c5;
+  --primary: #016b5d;
+  --on-primary: #ffffff;
+  --tertiary-chip: #cae6ff;
+  --on-tertiary: #001e2f;
+  --secondary-chip: #cde8e1;
+  --on-secondary: #06201b;
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error-container: #410002;
+  --ring: rgba(1, 107, 93, 0.12);
+  --state: rgba(1, 107, 93, 0.06);
+  --shadow-soft: 0 1px 2px rgba(20, 40, 35, 0.04), 0 2px 10px -4px rgba(20, 40, 35, 0.08);
+  --shadow-float: 0 2px 6px -2px rgba(20, 40, 35, 0.12), 0 14px 34px -10px rgba(20, 40, 35, 0.2);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b0b0c;
-    --surface: #161617;
-    --surface-2: #1f1f21;
-    --ink: #edece9;
-    --muted: #8f8b84;
-    --faint: #65615b;
-    --line: #2a2a2c;
-    --ring: rgba(237, 236, 233, 0.1);
-    --state: rgba(237, 236, 233, 0.06);
+    --bg: #0e1513;
+    --surface: #0e1513;
+    --surface-2: #1b211f;
+    --card: #1b211f;
+    --accent: #005046;
+    --on-accent: #9ff2e1;
+    --ink: #dee4e1;
+    --muted: #bec9c5;
+    --faint: #899390;
+    --line: #3f4946;
+    --primary: #83d5c5;
+    --on-primary: #003730;
+    --tertiary-chip: #2c4a60;
+    --on-tertiary: #cae6ff;
+    --secondary-chip: #334b46;
+    --on-secondary: #cde8e1;
+    --error: #ffb4ab;
+    --error-container: #93000a;
+    --on-error-container: #ffdad6;
+    --ring: rgba(131, 213, 197, 0.14);
+    --state: rgba(131, 213, 197, 0.07);
     --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 12px -4px rgba(0, 0, 0, 0.5);
     --shadow-float: 0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 14px 34px -10px rgba(0, 0, 0, 0.6);
   }
@@ -53,12 +77,25 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-card: var(--card);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-tertiary-chip: var(--tertiary-chip);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-secondary-chip: var(--secondary-chip);
+  --color-on-secondary: var(--on-secondary);
+  --color-error: var(--error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
   --color-state: var(--state);
-  --radius-card: 22px;
+  --radius-card: 16px;
+  --radius-hero: 24px;
   --radius-pill: 999px;
   --shadow-soft: var(--shadow-soft);
   --shadow-float: var(--shadow-float);
@@ -66,8 +103,10 @@
 }
 
 html,
-body {
+body,
+#root {
   margin: 0;
+  min-height: 100%;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -80,8 +119,8 @@ body {
 }
 
 ::selection {
-  background: var(--ink);
-  color: var(--bg);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 *:focus-visible {
@@ -109,17 +148,16 @@ body {
 @utility label {
   font-size: 11px;
   line-height: 1;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
+  font-weight: 600;
 }
 
 /* Elevated tonal surface that replaces the repeated hairline-border boxes. */
 @utility card {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--card);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
 }
 
 /* Concentric ripple rings, the recurring "breathing water" motif. */
@@ -169,6 +207,12 @@ body {
   }
 }
 
+@keyframes tabIn {
+  from { opacity: 0; filter: blur(14px); transform: scale(0.99); }
+  to { opacity: 1; filter: none; transform: none; }
+}
+.tab-enter { animation: tabIn 0.42s var(--ease-calm) both; }
+
 .tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
@@ -190,7 +234,7 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--primary);
   cursor: pointer;
   box-shadow: var(--shadow-soft);
   transition: transform 0.15s var(--ease-calm);
@@ -203,7 +247,7 @@ body {
   height: 20px;
   border: none;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--primary);
   cursor: pointer;
 }
 .slider::-moz-range-track {
