@@ -34,6 +34,22 @@ export interface SyncStatus {
   lastSync: number | null;
   error: string | null;
   pendingEmail: string | null;
+  devices: SyncDevice[];
+  preferences: SyncPreferences;
+}
+
+export interface SyncDevice {
+  id: string;
+  platform: string;
+  label: string;
+  lastSeen: string | null;
+  current: boolean;
+}
+
+export interface SyncPreferences {
+  usageStats: boolean;
+  reducerConfigs: boolean;
+  usageDeviceIds: string[];
 }
 
 export interface UsageWebPayload {
@@ -54,7 +70,9 @@ export type SyncRequest =
   | { type: "sync:setPassphrase"; passphrase: string }
   | { type: "sync:unlock"; passphrase: string }
   | { type: "sync:makePairingCode" }
-  | { type: "sync:pairWithCode"; payload: string };
+  | { type: "sync:pairWithCode"; payload: string }
+  | { type: "sync:setDeviceName"; name: string }
+  | { type: "sync:setPreferences"; preferences: SyncPreferences };
 
 export interface SyncResponse {
   ok: boolean;

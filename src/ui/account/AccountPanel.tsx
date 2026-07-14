@@ -249,6 +249,11 @@ function Passphrase({
 
 function Unlocked({ status, busy, run }: { status: SyncStatus; busy: boolean; run: Run }) {
   const [qr, setQr] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState(status.devices.find((d) => d.current)?.label ?? "");
+  const prefs = status.preferences;
+
+  const savePrefs = (next: Partial<typeof prefs>) =>
+    void run({ type: "sync:setPreferences", preferences: { ...prefs, ...next } });
 
   const showCode = async () => {
     const res = await run({ type: "sync:makePairingCode" });
@@ -267,6 +272,46 @@ function Unlocked({ status, busy, run }: { status: SyncStatus; busy: boolean; ru
         {status.lastSync ? `Last synced ${new Date(status.lastSync).toLocaleTimeString()}` : "Waiting for first sync"}
         {status.error ? ` · ${status.error}` : ""}
       </p>
+
+      <div className="border-t border-line pt-4">
+        <p className="label mb-2">This device</p>
+        <div className="flex gap-2">
+          <input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} maxLength={60}
+            className="min-w-0 flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink outline-none focus:border-ink" />
+          <Btn ghost busy={busy} onClick={() => void run({ type: "sync:setDeviceName", name: deviceName })}>Save name</Btn>
+        </div>
+      </div>
+
+      <div className="border-t border-line pt-4">
+        <p className="label mb-3">What syncs</p>
+        <label className="mb-3 flex items-center justify-between gap-4 text-sm">
+          <span><b className="font-medium">Usage stats</b><small className="block text-muted">Share and combine time spent across devices</small></span>
+          <input type="checkbox" checked={prefs.usageStats} onChange={(e) => savePrefs({ usageStats: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-4 text-sm">
+          <span><b className="font-medium">Reducer configs</b><small className="block text-muted">Keep blockers and focus groups in step</small></span>
+          <input type="checkbox" checked={prefs.reducerConfigs} onChange={(e) => savePrefs({ reducerConfigs: e.target.checked })} />
+        </label>
+      </div>
+
+      {prefs.usageStats && status.devices.length > 0 && (
+        <div className="border-t border-line pt-4">
+          <p className="label mb-1">Usage shown from</p>
+          <p className="mb-3 text-xs text-muted">Choose which other devices contribute to combined usage.</p>
+          <label className="mb-2 flex items-center gap-2 text-sm">
+            <input type="radio" checked={prefs.usageDeviceIds.length === 0} onChange={() => savePrefs({ usageDeviceIds: [] })} /> All devices
+          </label>
+          {status.devices.filter((d) => !d.current).map((device) => (
+            <label key={device.id} className="mb-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={prefs.usageDeviceIds.includes(device.id)}
+                onChange={(e) => savePrefs({ usageDeviceIds: e.target.checked
+                  ? [...prefs.usageDeviceIds, device.id]
+                  : prefs.usageDeviceIds.filter((id) => id !== device.id) })} />
+              <span>{device.label}<small className="ml-2 text-muted">{device.platform}</small></span>
+            </label>
+          ))}
+        </div>
+      )}
 
       <div className="border-t border-line pt-4">
         <p className="label mb-2">Add another device</p>

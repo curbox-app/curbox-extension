@@ -59,6 +59,12 @@ async function handleSync(req: SyncRequest): Promise<SyncResponse> {
       case "sync:pairWithCode":
         await sync.pairWithCode(req.payload);
         break;
+      case "sync:setDeviceName":
+        await sync.setDeviceName(req.name);
+        break;
+      case "sync:setPreferences":
+        await sync.setPreferences(req.preferences);
+        break;
       case "sync:status":
         break;
     }

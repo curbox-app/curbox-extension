@@ -25,10 +25,12 @@ import {
   getCursor,
   getDeviceId,
   getRemoteUsage,
+  getSyncPreferences,
   getStoredDek,
   getVaultMeta,
   setCursor,
   setRemoteUsage,
+  setSyncPreferences,
   setStoredDek,
   setVaultMeta,
   type VaultMeta,
@@ -41,6 +43,8 @@ import {
   NS_USAGE_WEB,
   type FocusGroupPayload,
   type SyncStatus,
+  type SyncDevice,
+  type SyncPreferences,
   type UsageWebPayload,
 } from "./types";
 
@@ -76,11 +80,14 @@ export class SyncEngine {
   private lastError: string | null = null;
   private pendingEmail: string | null = null;
   private starting = false;
+  private preferences: SyncPreferences = { usageStats: true, reducerConfigs: true, usageDeviceIds: [] };
+  private devices: SyncDevice[] = [];
 
   async start(): Promise<void> {
     if (this.starting) return;
     this.starting = true;
     this.deviceId = await getDeviceId();
+    this.preferences = await getSyncPreferences();
 
     this.sb.auth.onAuthStateChange((_event, session) => {
       this.userId = session?.user.id ?? null;
@@ -107,6 +114,7 @@ export class SyncEngine {
       this.dek = await importDEK(this.dekBytes);
     }
     await this.registerDevice();
+    await this.refreshDevices();
     if (this.dek) {
       await this.subscribe();
       await this.pullSinceCursor();
@@ -283,6 +291,40 @@ export class SyncEngine {
     );
   }
 
+  private async refreshDevices(): Promise<void> {
+    if (!this.userId) return;
+    const { data, error } = await this.sb.from("devices").select("id, platform, label, last_seen").eq("user_id", this.userId).order("last_seen", { ascending: false });
+    if (error) throw error;
+    this.devices = (data ?? []).map((d) => ({
+      id: d.id as string,
+      platform: d.platform as string,
+      label: ((d.label as string | null) || (d.platform as string) || "Device").trim(),
+      lastSeen: d.last_seen as string | null,
+      current: d.id === this.deviceId,
+    }));
+  }
+
+  async setDeviceName(name: string): Promise<void> {
+    const label = name.trim().slice(0, 60);
+    if (!label || !this.userId || !this.deviceId) throw new Error("Enter a device name");
+    const { error } = await this.sb.from("devices").update({ label }).eq("id", this.deviceId).eq("user_id", this.userId);
+    if (error) throw error;
+    await this.refreshDevices();
+  }
+
+  async setPreferences(preferences: SyncPreferences): Promise<void> {
+    this.preferences = { ...preferences, usageDeviceIds: [...new Set(preferences.usageDeviceIds)] };
+    await setSyncPreferences(this.preferences);
+    await setCursor("1970-01-01T00:00:00Z");
+    if (!this.preferences.usageStats) {
+      await setRemoteUsage({});
+      await browser.storage.local.set({ "sync.remoteUsageView": {} });
+    }
+    await this.pullSinceCursor();
+    if (this.preferences.reducerConfigs) { await this.pushConfig(); await this.pushFocusGroups(); await this.pushFocus(); }
+    if (this.preferences.usageStats) await this.pushUsage();
+  }
+
   private browserLabel(): string {
     return navigator.userAgent.includes("Firefox") ? "firefox" : "chrome";
   }
@@ -333,13 +375,14 @@ export class SyncEngine {
       let maxCursor = cursor;
       for (const row of rows) {
         try {
-          if (row.namespace === NS_EXT_CONFIG && row.device_id !== this.deviceId) {
+          if (this.preferences.reducerConfigs && row.namespace === NS_EXT_CONFIG && row.device_id !== this.deviceId) {
             configRow = row; // keep only the latest, rows arrive in updated_at order
-          } else if (row.namespace === NS_FOCUS && row.device_id !== this.deviceId) {
+          } else if (this.preferences.reducerConfigs && row.namespace === NS_FOCUS && row.device_id !== this.deviceId) {
             focusRow = row;
-          } else if (row.namespace === NS_FOCUS_GROUPS && row.device_id !== this.deviceId) {
+          } else if (this.preferences.reducerConfigs && row.namespace === NS_FOCUS_GROUPS && row.device_id !== this.deviceId) {
             focusGroupRows.push(row);
-          } else if (row.namespace === NS_USAGE_WEB && row.device_id !== this.deviceId) {
+          } else if (this.preferences.usageStats && row.namespace === NS_USAGE_WEB && row.device_id !== this.deviceId &&
+            (this.preferences.usageDeviceIds.length === 0 || (row.device_id && this.preferences.usageDeviceIds.includes(row.device_id)))) {
             if (await this.applyUsageRow(row, remoteUsage)) usageChanged = true;
           }
         } catch {
@@ -428,6 +471,7 @@ export class SyncEngine {
   }
 
   async pushFocusGroups(): Promise<void> {
+    if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const settings = await get("settings");
     const groups = settings.focusGroups ?? [];
@@ -495,6 +539,7 @@ export class SyncEngine {
   }
 
   async pushFocus(): Promise<void> {
+    if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const session = await get("focus");
     const json = this.focusJson(session);
@@ -597,6 +642,7 @@ export class SyncEngine {
   }
 
   private async pushConfig(): Promise<void> {
+    if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const settings = await get("settings");
     const json = this.configJson(settings);
@@ -608,6 +654,7 @@ export class SyncEngine {
   }
 
   private async pushUsage(): Promise<void> {
+    if (!this.preferences.usageStats) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const usage = await get("usage");
     // Key by local day, the same boundary the tracker and blocker use, so we
@@ -661,6 +708,7 @@ export class SyncEngine {
       } catch {
         hasVault = (await getVaultMeta()) !== null;
       }
+      try { await this.refreshDevices(); } catch { /* keep the last known list offline */ }
     }
     return {
       signedIn,
@@ -671,6 +719,8 @@ export class SyncEngine {
       lastSync: this.lastSync,
       error: this.lastError,
       pendingEmail: signedIn ? null : this.pendingEmail,
+      devices: this.devices,
+      preferences: this.preferences,
     };
   }
 }

@@ -1,6 +1,7 @@
 import { browser } from "#imports";
 import type { KdfParams } from "../crypto";
 import type { UsageHistory } from "../types";
+import type { SyncPreferences } from "./types";
 
 const K_DEVICE_ID = "sync.deviceId";
 const K_CURSOR = "sync.cursor";
@@ -8,6 +9,8 @@ const K_DEK = "sync.dek";
 const K_VAULT = "sync.vaultMeta";
 const K_REMOTE_USAGE = "sync.remoteUsage";
 const K_REMOTE_USAGE_VIEW = "sync.remoteUsageView";
+const K_PREFERENCES = "sync.preferences";
+const DEFAULT_PREFERENCES: SyncPreferences = { usageStats: true, reducerConfigs: true, usageDeviceIds: [] };
 
 export interface VaultMeta {
   userId: string;
@@ -45,6 +48,11 @@ export const setVaultMeta = (meta: VaultMeta) => write(K_VAULT, meta);
 
 export const getRemoteUsage = async (): Promise<UsageHistory> => (await read<UsageHistory>(K_REMOTE_USAGE)) ?? {};
 export const setRemoteUsage = (usage: UsageHistory) => write(K_REMOTE_USAGE, usage);
+export const getSyncPreferences = async (): Promise<SyncPreferences> => ({
+  ...DEFAULT_PREFERENCES,
+  ...((await read<Partial<SyncPreferences>>(K_PREFERENCES)) ?? {}),
+});
+export const setSyncPreferences = (preferences: SyncPreferences) => write(K_PREFERENCES, preferences);
 
 export async function clearSyncState(): Promise<void> {
   await browser.storage.local.remove([K_CURSOR, K_DEK, K_VAULT, K_REMOTE_USAGE, K_REMOTE_USAGE_VIEW]);
