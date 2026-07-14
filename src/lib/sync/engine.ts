@@ -316,10 +316,10 @@ export class SyncEngine {
     this.preferences = { ...preferences, usageDeviceIds: [...new Set(preferences.usageDeviceIds)] };
     await setSyncPreferences(this.preferences);
     await setCursor("1970-01-01T00:00:00Z");
-    if (!this.preferences.usageStats) {
-      await setRemoteUsage({});
-      await browser.storage.local.set({ "sync.remoteUsageView": {} });
-    }
+    // Rebuild from the server so devices just excluded cannot remain in the
+    // local aggregate from an earlier selection.
+    await setRemoteUsage({});
+    await browser.storage.local.set({ "sync.remoteUsageView": {} });
     await this.pullSinceCursor();
     if (this.preferences.reducerConfigs) { await this.pushConfig(); await this.pushFocusGroups(); await this.pushFocus(); }
     if (this.preferences.usageStats) await this.pushUsage();
