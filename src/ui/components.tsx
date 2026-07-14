@@ -6,14 +6,14 @@ import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
 import { randomAscii } from "../lib/ascii";
 
 export const btnPrimary =
-  "inline-flex items-center justify-center gap-2 rounded-pill bg-ink px-6 py-2.5 text-sm font-medium text-bg shadow-soft transition-all duration-200 ease-out hover:shadow-float hover:-translate-y-px active:translate-y-0 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0";
+  "inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary transition active:scale-[0.98] disabled:opacity-40";
 export const btnOutline =
-  "inline-flex items-center justify-center gap-2 rounded-pill border border-line bg-surface px-5 py-2 text-sm font-medium text-ink transition-colors duration-200 hover:bg-state active:scale-[0.98]";
-export const btnGhost = "text-sm text-muted transition-colors hover:text-ink";
+  "inline-flex items-center justify-center gap-2 rounded-2xl bg-card px-5 py-3 text-sm font-semibold text-ink transition active:scale-[0.98] disabled:opacity-40";
+export const btnGhost = "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-muted transition hover:text-ink";
 export const inputCls =
-  "bg-transparent border-b border-line py-1.5 px-1 text-sm transition-colors focus:outline-none focus:border-ink placeholder:text-faint";
+  "w-full rounded-2xl bg-card px-4 py-3 text-sm text-ink outline-none placeholder:text-faint focus:ring-2 focus:ring-[var(--ring)]";
 export const selectCls =
-  "w-full bg-transparent border-b border-line py-1.5 text-sm transition-colors focus:outline-none focus:border-ink";
+  "w-full rounded-2xl bg-card px-4 py-3 text-sm text-ink outline-none focus:ring-2 focus:ring-[var(--ring)]";
 
 function UsageHeader({ subLabel, ms }: { subLabel: string; ms: number }) {
   return (
@@ -107,7 +107,7 @@ function WeeklyBarGraph({
               <div
                 style={{ height }}
                 className={`w-full max-w-[12px] rounded-[6px] transition-all duration-300 ease-out ${
-                  active ? "bg-ink" : "bg-ink/35 group-hover:bg-ink/55"
+                  active ? "bg-primary" : "bg-primary/35 group-hover:bg-primary/55"
                 }`}
               />
             </button>
@@ -237,12 +237,12 @@ export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) =
       role="switch"
       aria-checked={on}
       className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-300 ${
-        on ? "bg-ink" : "bg-surface-2"
+        on ? "bg-primary" : "bg-line"
       }`}
     >
       <span
         className={`inline-block h-4 w-4 rounded-full shadow-sm transition-transform duration-300 ease-out ${
-          on ? "translate-x-[18px] bg-bg" : "translate-x-[3px] bg-faint"
+          on ? "translate-x-[18px] bg-white" : "translate-x-[3px] bg-white"
         }`}
       />
     </button>
@@ -286,7 +286,7 @@ export function DayChips({ active, onToggle }: { active: boolean[]; onToggle: (i
           key={i}
           onClick={() => onToggle(i)}
           className={`h-9 w-9 rounded-full text-xs font-medium transition-all duration-200 ${
-            active[i] ? "bg-ink text-bg" : "bg-surface-2 text-muted hover:text-ink"
+            active[i] ? "bg-primary text-on-primary" : "bg-surface-2 text-muted hover:text-ink"
           }`}
         >
           {label}

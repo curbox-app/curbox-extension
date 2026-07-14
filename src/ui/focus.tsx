@@ -3,7 +3,7 @@ import type { FocusGroup, FocusLogEntry, FocusMode, FocusSession } from "../lib/
 import { newFocusGroup } from "../lib/types";
 import { dateKey, dayLabel, lastNDays, msToClock, msToHuman } from "../lib/time";
 import { startSession, endSession } from "../core/focus";
-import { Segmented, Slider, Toggle, btnPrimary, btnOutline, btnGhost, inputCls, selectCls } from "./components";
+import { Segmented, Toggle, btnPrimary, btnOutline, btnGhost, inputCls, selectCls } from "./components";
 import { useDraft } from "./useDraft";
 
 const MODE_OPTIONS: { value: FocusMode; label: string }[] = [
@@ -41,25 +41,29 @@ function ActiveSession({ focus }: { focus: FocusSession }) {
   );
 }
 
-function StartSession({ groups }: { groups: FocusGroup[] }) {
+function StartSession({ groups, onCreate }: { groups: FocusGroup[]; onCreate: () => void }) {
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [minutes, setMinutes] = useState(25);
 
   if (groups.length === 0) {
-    return <p className="text-sm text-muted py-2">Make a focus group below to begin a session.</p>;
+    return (
+      <div className="flex min-h-[560px] flex-col justify-end pb-4">
+        <div className="text-center"><span className="font-display tnum text-[128px] leading-none">{minutes}</span><span className="ml-1 text-xl text-muted">mins</span></div>
+        <FocusRuler minutes={minutes} setMinutes={setMinutes} />
+        <button onClick={onCreate} className={`mt-10 w-full ${btnPrimary}`}>Create Focus Group</button>
+      </div>
+    );
   }
 
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
 
   return (
-    <div className="card p-7">
+    <div className="flex min-h-[560px] flex-col justify-end pb-4">
       <div className="text-center">
-        <span className="font-display tnum text-[64px] leading-none">{minutes}</span>
-        <span className="font-display ml-1 text-2xl text-muted">min</span>
+        <span className="font-display tnum text-[128px] leading-none">{minutes}</span>
+        <span className="ml-1 text-xl text-muted">mins</span>
       </div>
-      <div className="mt-5">
-        <Slider value={minutes} min={5} max={120} step={5} onChange={setMinutes} />
-      </div>
+      <FocusRuler minutes={minutes} setMinutes={setMinutes} />
       <select value={group.id} onChange={(e) => setGroupId(e.target.value)} className={`mt-5 ${selectCls}`}>
         {groups.map((g) => (
           <option key={g.id} value={g.id}>
@@ -67,9 +71,20 @@ function StartSession({ groups }: { groups: FocusGroup[] }) {
           </option>
         ))}
       </select>
-      <button onClick={() => void startSession(group, minutes, group.exitable)} className={`mt-6 w-full ${btnPrimary}`}>
+      <button onClick={() => void startSession(group, minutes, group.exitable)} className={`mt-8 w-full ${btnPrimary}`}>
         Start focus
       </button>
+    </div>
+  );
+}
+
+function FocusRuler({ minutes, setMinutes }: { minutes: number; setMinutes: (n: number) => void }) {
+  return (
+    <div className="relative mt-8 h-16">
+      <div className="absolute inset-0 flex items-center justify-between px-2" aria-hidden="true">
+        {Array.from({ length: 19 }, (_, i) => <span key={i} className={`w-px ${i === 9 ? "h-12 bg-primary" : i % 4 === 0 ? "h-10 bg-muted" : "h-7 bg-faint/60"}`} />)}
+      </div>
+      <input aria-label="Focus duration" type="range" min={5} max={120} step={5} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0" />
     </div>
   );
 }
@@ -317,7 +332,7 @@ export function FocusPanel({
 
   return (
     <div className="flex flex-col gap-8">
-      {focus ? <ActiveSession focus={focus} /> : <StartSession groups={focusGroups} />}
+      {focus ? <ActiveSession focus={focus} /> : <StartSession groups={focusGroups} onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })} />}
       <FocusStats log={focusLog} groups={focusGroups} />
       <GroupList
         groups={focusGroups}

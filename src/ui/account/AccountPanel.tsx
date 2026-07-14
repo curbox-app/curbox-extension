@@ -88,7 +88,7 @@ function Btn(props: { onClick: () => void; busy?: boolean; children: React.React
       onClick={props.onClick}
       disabled={props.busy}
       className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-        props.ghost ? "text-muted hover:text-ink" : "bg-ink text-surface"
+        props.ghost ? "text-muted hover:text-ink" : "bg-primary text-on-primary"
       }`}
     >
       {props.children}
