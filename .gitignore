@@ -4,7 +4,6 @@ node_modules
 stats.html
 *.log
 .DS_Store
-# Ignore documentation and layout files
 CLAUDE.md
 android_docs/
 layout/
@@ -17,3 +16,4 @@ graphify-out
 .env.development.local
 .env.test.local
 .env.production.local
+package-lock.json
