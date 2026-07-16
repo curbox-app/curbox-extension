@@ -5,6 +5,7 @@ import { GroupManager } from "../../ui/blocker";
 import { FocusPanel } from "../../ui/focus";
 import { AboutPanel } from "../../ui/about";
 import { AccountPanel } from "../../ui/account/AccountPanel";
+import { ConsentDialog } from "../../ui/ConsentDialog";
 import type { Settings } from "../../lib/types";
 
 type Tab = "usage" | "focus" | "reducers" | "info";
@@ -18,7 +19,7 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 export function App() {
-  const { usage, settings, focus, focusLog, ready, saveSettings } = useCurbox();
+  const { usage, settings, focus, focusLog, ready, termsAccepted, acceptTerms, saveSettings } = useCurbox();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>("usage");
   const [reducerPage, setReducerPage] = useState<ReducerPage>(null);
@@ -27,7 +28,15 @@ export function App() {
     if (ready && !draft) setDraft(settings);
   }, [ready, settings, draft]);
 
-  if (!draft) return null;
+  if (!ready || !draft) return null;
+
+  if (!termsAccepted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <ConsentDialog onAccept={() => void acceptTerms()} />
+      </div>
+    );
+  }
 
   const commit = (next: Settings) => {
     setDraft(next);

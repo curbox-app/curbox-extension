@@ -16,6 +16,7 @@ export interface CurboxState {
   settings: Settings;
   focus: FocusSession | null;
   focusLog: FocusLogEntry[];
+  termsAccepted: boolean;
   ready: boolean;
 }
 
@@ -25,6 +26,7 @@ export function useCurbox() {
     settings: DEFAULT_SETTINGS,
     focus: null,
     focusLog: [],
+    termsAccepted: false,
     ready: false,
   });
 
@@ -34,16 +36,17 @@ export function useCurbox() {
     let remoteUsage: UsageHistory = {};
 
     const load = async () => {
-      const [usage, settings, focus, focusLog, remote] = await Promise.all([
+      const [usage, settings, focus, focusLog, termsAccepted, remote] = await Promise.all([
         get("usage"),
         get("settings"),
         get("focus"),
         get("focusLog"),
+        get("termsAccepted"),
         loadRemoteUsage(),
       ]);
       localUsage = usage;
       remoteUsage = remote;
-      if (alive) setState({ usage: mergeUsage(usage, remote), settings, focus, focusLog, ready: true });
+      if (alive) setState({ usage: mergeUsage(usage, remote), settings, focus, focusLog, termsAccepted, ready: true });
     };
     void load();
     const stop = watch((changed) => {
@@ -57,6 +60,7 @@ export function useCurbox() {
         settings: changed.settings ?? prev.settings,
         focus: "focus" in changed ? (changed.focus ?? null) : prev.focus,
         focusLog: changed.focusLog ?? prev.focusLog,
+        termsAccepted: changed.termsAccepted ?? prev.termsAccepted,
         ready: true,
       }));
     });
@@ -67,6 +71,7 @@ export function useCurbox() {
   }, []);
 
   const saveSettings = (settings: Settings) => set("settings", settings);
+  const acceptTerms = () => set("termsAccepted", true);
 
-  return { ...state, saveSettings };
+  return { ...state, saveSettings, acceptTerms };
 }

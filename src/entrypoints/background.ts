@@ -190,8 +190,11 @@ export default defineBackground(() => {
     if (alarm.name === "tick") {
       // Re-query heals any state change the worker missed while it was asleep.
       void browser.idle.queryState(15).then(applyIdleState);
-      void persist();
-      void evaluateFocused();
+      void get("termsAccepted").then((accepted) => {
+        if (!accepted) return;
+        void persist();
+        void evaluateFocused();
+      });
       void sync.pullSinceCursor();
     } else if (alarm.name === "focus-end") {
       void activeSession().then(() => evaluateAllTabs());
@@ -203,17 +206,25 @@ export default defineBackground(() => {
   void activeSession().then(scheduleFocusEnd);
   void get("grants").then(scheduleGrantEnd);
 
-  // On worker start, recover the real focus state instead of assuming the
-  // user is present, then resume tracking right away rather than waiting up
-  // to a tick. The tracker restores its own in-flight state from
-  // storage.session before any of these apply.
-  void browser.windows
-    .getLastFocused()
-    .then((win) => setWindowFocused(win.focused === true))
-    .catch(() => {});
-  void evaluateFocused();
+  // On worker start, only begin tracking if the user has accepted the terms.
+  // If not yet accepted, the watch handler below starts tracking once they do.
+  void get("termsAccepted").then((accepted) => {
+    if (!accepted) return;
+    void browser.windows
+      .getLastFocused()
+      .then((win) => setWindowFocused(win.focused === true))
+      .catch(() => {});
+    void evaluateFocused();
+  });
 
   watch((changed) => {
+    if ("termsAccepted" in changed && changed.termsAccepted) {
+      void browser.windows
+        .getLastFocused()
+        .then((win) => setWindowFocused(win.focused === true))
+        .catch(() => {});
+      void evaluateFocused();
+    }
     if ("focus" in changed) {
       scheduleFocusEnd(changed.focus ?? null);
       void evaluateAllTabs();

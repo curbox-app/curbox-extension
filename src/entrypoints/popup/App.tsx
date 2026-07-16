@@ -1,6 +1,7 @@
 import { browser } from "#imports";
 import { useCurbox } from "../../ui/useStore";
 import { UsageView, ErrorBoundary } from "../../ui/components";
+import { ConsentDialog } from "../../ui/ConsentDialog";
 
 async function openOptions(): Promise<void> {
   const url = browser.runtime.getURL("/options.html");
@@ -45,9 +46,11 @@ function Loading() {
 }
 
 export function App() {
-  const { usage, ready } = useCurbox();
+  const { usage, ready, termsAccepted, acceptTerms } = useCurbox();
 
   if (!ready) return <Loading />;
+
+  if (!termsAccepted) return <ConsentDialog onAccept={() => void acceptTerms()} />;
 
   return (
     <div className="min-h-[480px] w-[360px] bg-bg">
