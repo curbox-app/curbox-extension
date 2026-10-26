@@ -11,6 +11,9 @@ export default defineConfig({
     name: "Curbox",
     description: "A calm companion that helps you stay conscious of your time online.",
     homepage_url: "https://curbox.app/privacy",
+    action: {
+      default_title: "Curbox",
+    },
     permissions: ["storage", "tabs", "alarms", "idle", "favicon", "scripting"],
     host_permissions: ["<all_urls>"],
     web_accessible_resources: [

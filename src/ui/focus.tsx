@@ -42,7 +42,9 @@ function ActiveSession({ focus }: { focus: FocusSession }) {
   );
 }
 
-function StartSession({ groups, onCreate }: { groups: FocusGroup[]; onCreate: () => void }) {
+function StartSession({ groups, onCreate, compact }: { groups: FocusGroup[]; onCreate: () => void; compact?: boolean }) {
+  const stage = compact ? "min-h-[22rem]" : "min-h-[560px]";
+  const digits = compact ? "text-[88px]" : "text-[112px]";
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [minutes, setMinutes] = useState(25);
 
@@ -57,9 +59,9 @@ function StartSession({ groups, onCreate }: { groups: FocusGroup[]; onCreate: ()
 
   if (groups.length === 0) {
     return (
-      <div className="flex min-h-[560px] flex-col justify-end pb-4">
+      <div className={`flex flex-col justify-end pb-4 ${stage}`}>
         <div className="flex items-end justify-center gap-2 text-center">
-          <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className="font-display tnum w-56 bg-transparent text-right text-[112px] leading-none outline-none" />
+          <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className={`font-display tnum w-56 bg-transparent text-right leading-none outline-none ${digits}`} />
           <span className="mb-3 text-xl text-muted">mins</span>
         </div>
         <FocusRuler minutes={minutes} setMinutes={setMinutes} />
@@ -71,9 +73,9 @@ function StartSession({ groups, onCreate }: { groups: FocusGroup[]; onCreate: ()
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
 
   return (
-    <div className="flex min-h-[560px] flex-col justify-end pb-4">
+    <div className={`flex flex-col justify-end pb-4 ${stage}`}>
       <div className="text-center">
-        <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className="font-display tnum w-56 bg-transparent text-right text-[112px] leading-none outline-none" />
+        <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className={`font-display tnum w-56 bg-transparent text-right leading-none outline-none ${digits}`} />
         <span className="ml-1 text-xl text-muted">mins</span>
       </div>
       <FocusRuler minutes={minutes} setMinutes={setMinutes} />
@@ -320,11 +322,13 @@ export function FocusPanel({
   focusGroups,
   focusLog,
   onChangeGroups,
+  compact,
 }: {
   focus: FocusSession | null;
   focusGroups: FocusGroup[];
   focusLog: FocusLogEntry[];
   onChangeGroups: (groups: FocusGroup[]) => void;
+  compact?: boolean;
 }) {
   // A group being created or edited stays a local draft until it is saved, so
   // the start-a-session card never reacts to a half-made group, and cancelling
@@ -335,7 +339,7 @@ export function FocusPanel({
   if (page === "stats") {
     return (
       <div className="flex flex-col gap-6">
-        <button type="button" onClick={() => setPage("home")} className="text-sm font-medium text-primary">
+        <button type="button" onClick={() => setPage("home")} className="sticky top-0 z-10 -mx-4 bg-bg px-4 py-3 text-left text-sm font-medium text-primary">
           ← Focus
         </button>
         <div>
@@ -367,7 +371,7 @@ export function FocusPanel({
 
   return (
     <div className="flex flex-col gap-8">
-      {focus ? <ActiveSession focus={focus} /> : <StartSession groups={focusGroups} onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })} />}
+      {focus ? <ActiveSession focus={focus} /> : <StartSession compact={compact} groups={focusGroups} onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })} />}
       <button type="button" onClick={() => setPage("stats")} className="card flex items-center gap-4 p-5 text-left">
         <span className="min-w-0 flex-1">
           <b className="block text-base text-ink">Focus stats</b>

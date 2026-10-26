@@ -21,40 +21,21 @@ function usageEyebrow(key: DateKey): string {
   return "TOTAL · Today";
 }
 
-function MenuDots({ onClick }: { onClick?: () => void }) {
-  const icon = (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <circle cx="12" cy="5.5" r="1.4" />
-      <circle cx="12" cy="12" r="1.4" />
-      <circle cx="12" cy="18.5" r="1.4" />
-    </svg>
-  );
-  if (!onClick) {
-    return <span className="grid h-10 w-10 place-items-center text-muted">{icon}</span>;
-  }
+function UsageHeader({ day, ms, compact }: { day: DateKey; ms: number; compact?: boolean }) {
   return (
-    <button type="button" onClick={onClick} aria-label="More" className="grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:bg-white/5 hover:text-ink">
-      {icon}
-    </button>
-  );
-}
-
-function UsageHeader({ day, ms, onMenu }: { day: DateKey; ms: number; onMenu?: () => void }) {
-  return (
-    <div className="flex items-start justify-between pt-[100px]">
+    <div className={`flex items-start justify-between ${compact ? "pt-6" : "pt-[100px]"}`}>
       <div>
         <p className="text-[11px] font-medium tracking-[0.04em] text-muted">{usageEyebrow(day)}</p>
         <p className="font-display tnum mt-1 text-[56px] leading-none text-ink">{msToWidget(ms)}</p>
       </div>
-      <MenuDots onClick={onMenu} />
     </div>
   );
 }
 
-function AsciiWatermark({ ascii }: { ascii: string }) {
+function AsciiWatermark({ ascii, compact }: { ascii: string; compact?: boolean }) {
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 top-0 z-0 flex h-[380px] justify-center overflow-hidden"
+      className={`pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center overflow-hidden ${compact ? "h-[220px]" : "h-[380px]"}`}
       style={{
         maskImage: "linear-gradient(to bottom, #000 42%, transparent 96%)",
         WebkitMaskImage: "linear-gradient(to bottom, #000 42%, transparent 96%)",
@@ -258,7 +239,7 @@ function Chevron({ dir }: { dir: "left" | "right" }) {
   );
 }
 
-export function UsageView({ usage, onMenu }: { usage: UsageHistory; onMenu?: () => void }) {
+export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: boolean }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selected, setSelected] = useState(todayKey());
   const keys = useMemo(() => weekKeys(weekOffset), [weekOffset]);
@@ -270,9 +251,9 @@ export function UsageView({ usage, onMenu }: { usage: UsageHistory; onMenu?: () 
 
   return (
     <div className="rise relative">
-      <AsciiWatermark ascii={ascii} />
+      <AsciiWatermark ascii={ascii} compact={compact} />
       <div className="relative z-10 px-4">
-        <UsageHeader day={selected} ms={total} onMenu={onMenu} />
+        <UsageHeader day={selected} ms={total} compact={compact} />
         <div className="mt-6">
           <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
           <div className="mt-1 flex items-center text-accent">

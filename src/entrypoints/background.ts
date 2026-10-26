@@ -193,7 +193,46 @@ function applyIdleState(state: "active" | "idle" | "locked"): void {
   void setMachineState(state);
 }
 
+const PANEL_WIDTH = 480;
+const PANEL_HEIGHT = 960;
+
+type ToolbarAction = { onClicked: { addListener: (cb: () => void) => void } };
+
+function toolbarAction(): ToolbarAction | undefined {
+  const api = browser as typeof browser & { action?: ToolbarAction; browserAction?: ToolbarAction };
+  return api.action ?? api.browserAction;
+}
+
+async function openAppWindow(): Promise<void> {
+  const url = browser.runtime.getURL("/panel.html");
+  const open = await browser.windows.getAll({ populate: true, windowTypes: ["popup"] });
+  const existing = open.find((win) => win.tabs?.some((tab) => tab.url?.startsWith(url)));
+  if (existing?.id != null) {
+    await browser.windows.update(existing.id, { focused: true });
+    return;
+  }
+
+  const current = await browser.windows.getCurrent();
+  const available = Math.max(640, (current.height ?? PANEL_HEIGHT) - 24);
+  const height = Math.min(PANEL_HEIGHT, available);
+  const top = Math.max(0, (current.top ?? 0) + 48);
+  const left = Math.max(0, (current.left ?? 0) + (current.width ?? PANEL_WIDTH) - PANEL_WIDTH - 12);
+  await browser.windows.create({
+    url,
+    type: "popup",
+    width: PANEL_WIDTH,
+    height,
+    top,
+    left,
+    focused: true,
+  });
+}
+
 export default defineBackground(() => {
+  toolbarAction()?.onClicked.addListener(() => {
+    void openAppWindow();
+  });
+
   // Call registerSyncProvider before this when a remote sync service is connected.
   void sync.start().catch(() => undefined);
 

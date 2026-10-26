@@ -22,6 +22,8 @@ A browser extension that shows where your time actually goes online. It blocks t
 
 ## Features
 
+The toolbar button opens the whole app in its own window. Usage, focus, blockers, and info all live there. You do not need a separate settings tab.
+
 ### Usage Stats
 
 See where your time actually goes. Curbox only counts a tab while you are looking at it, so something left open in the background never inflates your numbers. You get today's total at the top, a weekly bar graph you can scroll back through, and a list of sites sorted by time spent. Open any site and it breaks down by path, so `youtube.com` splits into the videos and the `/shorts` that quietly ate your afternoon.
