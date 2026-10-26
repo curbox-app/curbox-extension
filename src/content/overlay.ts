@@ -12,16 +12,12 @@ const STYLE = `
   align-items: center;
   justify-content: center;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f5f3ef;
-  color: #1a1917;
+  background: #0f1115;
+  color: #f3f4f8;
   opacity: 0;
   transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .curbox-root.visible { opacity: 1; }
-@media (prefers-color-scheme: dark) {
-  .curbox-root { background: #0b0b0c; color: #edece9; }
-  input, textarea { color: #edece9; border-color: rgba(237,236,233,0.28); }
-}
 .card {
   width: min(460px, 86vw);
   display: flex;
@@ -51,7 +47,7 @@ input, textarea {
   width: 100%;
   max-width: 340px;
   background: transparent;
-  border: 1px solid rgba(26, 25, 23, 0.25);
+  border: 1px solid rgba(243, 244, 248, 0.22);
   border-radius: 14px;
   padding: 11px 14px;
   color: inherit;

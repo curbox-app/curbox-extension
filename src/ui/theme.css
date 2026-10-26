@@ -18,57 +18,29 @@
 }
 
 :root {
-  --bg: #f5fbf8;
-  --surface: #f5fbf8;
-  --surface-2: #eff5f2;
-  --card: #e9efec;
-  --accent: #9ff2e1;
-  --on-accent: #00201b;
-  --ink: #171d1b;
-  --muted: #3f4946;
-  --faint: #6f7976;
-  --line: #bec9c5;
-  --primary: #016b5d;
-  --on-primary: #ffffff;
-  --tertiary-chip: #cae6ff;
-  --on-tertiary: #001e2f;
-  --secondary-chip: #cde8e1;
-  --on-secondary: #06201b;
-  --error: #ba1a1a;
-  --error-container: #ffdad6;
-  --on-error-container: #410002;
-  --ring: rgba(1, 107, 93, 0.12);
-  --state: rgba(1, 107, 93, 0.06);
-  --shadow-soft: 0 1px 2px rgba(20, 40, 35, 0.04), 0 2px 10px -4px rgba(20, 40, 35, 0.08);
-  --shadow-float: 0 2px 6px -2px rgba(20, 40, 35, 0.12), 0 14px 34px -10px rgba(20, 40, 35, 0.2);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1513;
-    --surface: #0e1513;
-    --surface-2: #1b211f;
-    --card: #1b211f;
-    --accent: #005046;
-    --on-accent: #9ff2e1;
-    --ink: #dee4e1;
-    --muted: #bec9c5;
-    --faint: #899390;
-    --line: #3f4946;
-    --primary: #83d5c5;
-    --on-primary: #003730;
-    --tertiary-chip: #2c4a60;
-    --on-tertiary: #cae6ff;
-    --secondary-chip: #334b46;
-    --on-secondary: #cde8e1;
-    --error: #ffb4ab;
-    --error-container: #93000a;
-    --on-error-container: #ffdad6;
-    --ring: rgba(131, 213, 197, 0.14);
-    --state: rgba(131, 213, 197, 0.07);
-    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 12px -4px rgba(0, 0, 0, 0.5);
-    --shadow-float: 0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 14px 34px -10px rgba(0, 0, 0, 0.6);
-  }
+  --bg: #0f1115;
+  --surface: #0f1115;
+  --surface-2: #171a21;
+  --card: #1c2028;
+  --accent: #a9b4e6;
+  --on-accent: #12141c;
+  --ink: #f3f4f8;
+  --muted: #a8adba;
+  --faint: #717786;
+  --line: #2c313c;
+  --primary: #d7c6ff;
+  --on-primary: #1b1630;
+  --tertiary-chip: #262b36;
+  --on-tertiary: #f3f4f8;
+  --secondary-chip: #343a52;
+  --on-secondary: #f3f4f8;
+  --error: #ffb4ab;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
+  --ring: rgba(215, 198, 255, 0.22);
+  --state: rgba(243, 244, 248, 0.06);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 8px 28px -12px rgba(0, 0, 0, 0.7);
 }
 
 @theme inline {
