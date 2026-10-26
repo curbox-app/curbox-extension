@@ -148,11 +148,36 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
   }
 }
 
+function supportsWindows(): boolean {
+  try {
+    return typeof browser.windows?.getLastFocused === "function" && typeof browser.windows?.create === "function";
+  } catch {
+    return false;
+  }
+}
+
+async function queryActiveTab(): Promise<{ id?: number; url?: string; audible?: boolean } | undefined> {
+  // lastFocusedWindow is the desktop query. Firefox Android rejects it because
+  // there is no windows API, so only use it where that API exists.
+  if (supportsWindows()) {
+    const [tab] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    return tab;
+  }
+  try {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) return tab;
+  } catch {
+    // currentWindow is also a window-model filter.
+  }
+  const [tab] = await browser.tabs.query({ active: true });
+  return tab;
+}
+
 async function evaluateFocused(): Promise<void> {
   // The worker can be restarted out from under us, dropping focusedTabId, so
   // recover the active tab before giving up.
   if (focusedTabId == null) {
-    const [tab] = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    const tab = await queryActiveTab();
     if (tab?.id == null) return;
     focusedTabId = tab.id;
   }
@@ -203,8 +228,7 @@ function toolbarAction(): ToolbarAction | undefined {
   return api.action ?? api.browserAction;
 }
 
-async function openAppWindow(): Promise<void> {
-  const url = browser.runtime.getURL("/panel.html");
+async function openDesktopPanel(url: string): Promise<void> {
   const open = await browser.windows.getAll({ populate: true, windowTypes: ["popup"] });
   const existing = open.find((win) => win.tabs?.some((tab) => tab.url?.startsWith(url)));
   if (existing?.id != null) {
@@ -228,6 +252,85 @@ async function openAppWindow(): Promise<void> {
   });
 }
 
+async function openAppTab(url: string): Promise<void> {
+  const tabs = await browser.tabs.query({});
+  const existing = tabs.find((tab) => tab.url?.startsWith(url));
+  if (existing?.id != null) {
+    await browser.tabs.update(existing.id, { active: true });
+    return;
+  }
+  await browser.tabs.create({ url });
+}
+
+async function openAppWindow(): Promise<void> {
+  const panelUrl = browser.runtime.getURL("/panel.html");
+  if (supportsWindows()) {
+    try {
+      await openDesktopPanel(panelUrl);
+      return;
+    } catch {
+      // Popup windows are a desktop API. Fall through to a tab.
+    }
+  }
+  // options.html is the same app in page layout, which a phone tab can show.
+  await openAppTab(browser.runtime.getURL("/options.html"));
+}
+
+function watchIdle(): void {
+  const idle = browser.idle;
+  if (!idle?.setDetectionInterval || !idle.onStateChanged || !idle.queryState) return;
+  try {
+    idle.setDetectionInterval(15);
+    idle.onStateChanged.addListener(applyIdleState);
+    void idle.queryState(15).then(applyIdleState).catch(() => undefined);
+  } catch {
+    // Firefox Android does not implement idle. Page visibility still stops the clock.
+  }
+}
+
+function refreshIdle(): void {
+  if (!browser.idle?.queryState) return;
+  void browser.idle.queryState(15).then(applyIdleState).catch(() => undefined);
+}
+
+function syncWindowFocus(): void {
+  if (!browser.windows?.getLastFocused) return;
+  void browser.windows
+    .getLastFocused()
+    .then((win) => setWindowFocused(win.focused === true))
+    .catch(() => undefined);
+}
+
+function watchWindowFocus(): void {
+  if (!browser.windows?.onFocusChanged) return;
+  browser.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId === browser.windows.WINDOW_ID_NONE) {
+      setWindowFocused(false);
+      return;
+    }
+    setWindowFocused(true);
+    void browser.tabs.query({ active: true, windowId }).then((tabs) => {
+      const tab = tabs[0];
+      if (tab?.id != null) {
+        focusedTabId = tab.id;
+        void setTabAudible(tab.audible === true);
+        void evaluateTab(tab.id, tab.url, true);
+      }
+    });
+  });
+}
+
+function startTickAlarm(): void {
+  try {
+    const created = browser.alarms.create("tick", { periodInMinutes: 0.5 }) as unknown;
+    if (created && typeof (created as Promise<void>).then === "function") {
+      void (created as Promise<void>).catch(() => browser.alarms.create("tick", { periodInMinutes: 1 }));
+    }
+  } catch {
+    void browser.alarms.create("tick", { periodInMinutes: 1 });
+  }
+}
+
 export default defineBackground(() => {
   toolbarAction()?.onClicked.addListener(() => {
     void openAppWindow();
@@ -237,15 +340,14 @@ export default defineBackground(() => {
   void sync.start().catch(() => undefined);
 
   // Smallest interval the API allows, so a closed lid stops counting promptly.
-  browser.idle.setDetectionInterval(15);
-  browser.idle.onStateChanged.addListener(applyIdleState);
-  void browser.idle.queryState(15).then(applyIdleState);
+  // Missing on Firefox Android; skipping it must not abort the rest of startup.
+  watchIdle();
 
-  browser.alarms.create("tick", { periodInMinutes: 0.5 });
+  startTickAlarm();
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "tick") {
       // Re-query heals any state change the worker missed while it was asleep.
-      void browser.idle.queryState(15).then(applyIdleState);
+      refreshIdle();
       void get("termsAccepted").then((accepted) => {
         if (!accepted) return;
         void persist();
@@ -266,19 +368,13 @@ export default defineBackground(() => {
   // If not yet accepted, the watch handler below starts tracking once they do.
   void get("termsAccepted").then((accepted) => {
     if (!accepted) return;
-    void browser.windows
-      .getLastFocused()
-      .then((win) => setWindowFocused(win.focused === true))
-      .catch(() => {});
+    syncWindowFocus();
     void evaluateFocused();
   });
 
   watch((changed) => {
     if ("termsAccepted" in changed && changed.termsAccepted) {
-      void browser.windows
-        .getLastFocused()
-        .then((win) => setWindowFocused(win.focused === true))
-        .catch(() => {});
+      syncWindowFocus();
       void evaluateFocused();
     }
     if ("focus" in changed) {
@@ -306,26 +402,12 @@ export default defineBackground(() => {
       void evaluateTab(tabId, tab.url, tabId === focusedTabId);
       return;
     }
-    if (changeInfo.status === "complete") {
+    if (changeInfo.status === "complete" && tab.url) {
       void evaluateTab(tabId, tab.url, tabId === focusedTabId);
     }
   });
 
-  browser.windows.onFocusChanged.addListener((windowId) => {
-    if (windowId === browser.windows.WINDOW_ID_NONE) {
-      setWindowFocused(false);
-      return;
-    }
-    setWindowFocused(true);
-    void browser.tabs.query({ active: true, windowId }).then((tabs) => {
-      const tab = tabs[0];
-      if (tab?.id != null) {
-        focusedTabId = tab.id;
-        void setTabAudible(tab.audible === true);
-        void evaluateTab(tab.id, tab.url, true);
-      }
-    });
-  });
+  watchWindowFocus();
 
   browser.runtime.onMessage.addListener((message: ContentMessage, sender, sendResponse) => {
     const tabId = sender.tab?.id;
