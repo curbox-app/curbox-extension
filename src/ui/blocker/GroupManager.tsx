@@ -2,12 +2,30 @@ import { useState } from "react";
 import type { BlockGroup, FocusGroup } from "../../lib/types";
 import { newGroup } from "../../lib/types";
 import { Toggle, btnOutline } from "../components";
-import { GroupEditor } from "./GroupEditor";
+import { GroupEditor, type ScreenBack } from "./GroupEditor";
 
-export function GroupManager({ groups, focusGroups, onChange }: { groups: BlockGroup[]; focusGroups: FocusGroup[]; onChange: (groups: BlockGroup[]) => void }) {
+export type { ScreenBack };
+
+export function GroupManager({
+  groups,
+  focusGroups,
+  onChange,
+  onBack,
+}: {
+  groups: BlockGroup[];
+  focusGroups: FocusGroup[];
+  onChange: (groups: BlockGroup[]) => void;
+  onBack: (back: ScreenBack | null) => void;
+}) {
   // Edit a draft copy and only commit on Done, so a new group is saved exactly
   // once and cancelling leaves nothing behind.
   const [editing, setEditing] = useState<{ group: BlockGroup; isNew: boolean } | null>(null);
+
+  const closeEditor = () => {
+    setEditing(null);
+    onBack(null);
+  };
+  const showGroup = () => onBack({ label: "Groups", go: closeEditor });
 
   if (editing) {
     return (
@@ -16,9 +34,11 @@ export function GroupManager({ groups, focusGroups, onChange }: { groups: BlockG
         focusGroups={focusGroups}
         onSave={(next) => {
           onChange(editing.isNew ? [...groups, next] : groups.map((g) => (g.id === next.id ? next : g)));
-          setEditing(null);
+          closeEditor();
         }}
-        onCancel={() => setEditing(null)}
+        onCancel={closeEditor}
+        onBack={onBack}
+        onShowGroup={showGroup}
       />
     );
   }
@@ -28,7 +48,7 @@ export function GroupManager({ groups, focusGroups, onChange }: { groups: BlockG
       {groups.length === 0 && <p className="text-sm text-muted py-2">No blocks yet. Add one below.</p>}
       {groups.map((group) => (
         <div key={group.id} className="flex items-center justify-between border-b border-line/70 py-3">
-          <button className="-mx-2 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-state" onClick={() => setEditing({ group, isNew: false })}>
+          <button className="-mx-2 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-state" onClick={() => { setEditing({ group, isNew: false }); showGroup(); }}>
             <p className="text-sm">{group.name}</p>
             <p className="text-xs text-muted">
               {group.matchers.length} site{group.matchers.length === 1 ? "" : "s"} · {group.onEachOpen ? "On each open" : "Scheduled usage"}
@@ -49,7 +69,7 @@ export function GroupManager({ groups, focusGroups, onChange }: { groups: BlockG
         </div>
       ))}
       <button
-        onClick={() => setEditing({ group: newGroup(`New group ${groups.length + 1}`), isNew: true })}
+        onClick={() => { setEditing({ group: newGroup(`New group ${groups.length + 1}`), isNew: true }); showGroup(); }}
         className={`mt-3 self-start ${btnOutline}`}
       >
         + New group

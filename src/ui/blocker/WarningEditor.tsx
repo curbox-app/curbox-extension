@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { FocusGroup, WarningScreen } from "../../lib/types";
-import { Segmented, Toggle, inputCls } from "../components";
+import type { EffortType, FocusGroup, UnlockChallenge, WaitType, WarningScreen } from "../../lib/types";
+import { Toggle, inputCls, selectCls } from "../components";
 
 export function WarningEditor({
   warning,
@@ -15,7 +15,6 @@ export function WarningEditor({
   onChangeOnEachOpen: (enabled: boolean) => void;
   focusGroups: FocusGroup[];
 }) {
-  const [open, setOpen] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const patch = (value: Partial<WarningScreen>) => onChange({ ...warning, ...value });
 
@@ -25,43 +24,26 @@ export function WarningEditor({
   };
 
   return (
-    <div className="card flex flex-col gap-3 p-4">
-      <button onClick={() => setOpen((value) => !value)} className="flex items-center justify-between text-left">
-        <span className="text-sm">Warning screen</span>
-        <span className="text-xs font-medium text-muted">{open ? "Hide" : "Configure"}</span>
-      </button>
-
-      {open && (
-        <div className="flex flex-col gap-4">
-          <label className="flex items-center justify-between text-sm">
-            On each open
-            <Toggle on={onEachOpen} onChange={toggleOnEachOpen} />
-          </label>
-
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted">When I try to get past this</p>
-            <Segmented
-              value={warning.challenge}
-              options={[
-                { value: "never", label: "Never unlock" },
-                { value: "effort", label: "Require effort" },
-                { value: "wait", label: "Wait" },
-              ]}
-              onChange={(challenge) => patch({ challenge })}
-            />
-          </div>
+    <div className="flex flex-col gap-5">
+          <SelectField
+            label="Unlock challenge"
+            value={warning.challenge}
+            options={CHALLENGES}
+            onChange={(challenge) => patch({ challenge })}
+          />
+          <SelectField
+            label="Unlock method"
+            value={methodValue(warning, onEachOpen)}
+            options={methodOptions(warning.challenge, onEachOpen)}
+            disabled={warning.challenge === "never"}
+            onChange={(method) => {
+              if (method === "typing" || method === "intent" || method === "math") patch({ effortType: method });
+              if (method === "fixed" || method === "dynamic") patch({ waitType: method });
+            }}
+          />
 
           {warning.challenge === "effort" && (
             <div className="flex flex-col gap-3">
-              <Segmented
-                value={warning.effortType}
-                options={[
-                  { value: "typing", label: "Typing" },
-                  { value: "intent", label: "Write intent" },
-                  { value: "math", label: "Adaptive math" },
-                ]}
-                onChange={(effortType) => patch({ effortType })}
-              />
               {warning.effortType === "typing" && (
                 <textarea
                   value={warning.sentence}
@@ -91,13 +73,6 @@ export function WarningEditor({
 
           {warning.challenge === "wait" && (
             <div className="flex flex-col gap-2">
-              <Segmented
-                value={onEachOpen ? "fixed" : warning.waitType}
-                options={onEachOpen
-                  ? [{ value: "fixed", label: "Fixed time" }]
-                  : [{ value: "fixed", label: "Fixed time" }, { value: "dynamic", label: "Choose each time" }]}
-                onChange={(waitType) => patch({ waitType })}
-              />
               {(onEachOpen || warning.waitType === "fixed") && (
                 <NumberSetting label="Unlock for" value={warning.unlockMinutes} min={1} onChange={(unlockMinutes) => patch({ unlockMinutes })} suffix="minutes" />
               )}
@@ -116,6 +91,10 @@ export function WarningEditor({
 
             {advanced && (
               <>
+                <label className="flex items-center justify-between text-sm">
+                  On each open
+                  <Toggle on={onEachOpen} onChange={toggleOnEachOpen} />
+                </label>
                 <textarea
                   value={warning.customMessage}
                   onChange={(event) => patch({ customMessage: event.target.value })}
@@ -144,22 +123,96 @@ export function WarningEditor({
                       </div>
                     )}
 
-                    <label className="flex flex-wrap items-center gap-2 text-sm">
-                      Let me through
-                      <NumberInput value={warning.proceedLimit} min={0} onChange={(proceedLimit) => patch({ proceedLimit })} />
-                      times every
-                      <NumberInput value={warning.proceedWindowMinutes} min={1} onChange={(proceedWindowMinutes) => patch({ proceedWindowMinutes })} />
-                      minutes
+                    <label className="flex items-center justify-between text-sm">
+                      Limit how often I get through
+                      <Toggle
+                        on={warning.proceedLimit > 0}
+                        onChange={(limited) => patch({ proceedLimit: limited ? Math.max(1, warning.proceedLimit) : 0 })}
+                      />
                     </label>
-                    <p className="text-xs text-muted">Set passes to 0 for no limit.</p>
+                    {warning.proceedLimit > 0 && (
+                      <label className="flex flex-wrap items-center gap-2 text-sm">
+                        Let me through
+                        <NumberInput value={warning.proceedLimit} min={1} onChange={(proceedLimit) => patch({ proceedLimit })} />
+                        times every
+                        <NumberInput value={warning.proceedWindowMinutes} min={1} onChange={(proceedWindowMinutes) => patch({ proceedWindowMinutes })} />
+                        minutes
+                      </label>
+                    )}
                   </>
                 )}
               </>
             )}
           </div>
-        </div>
-      )}
     </div>
+  );
+}
+
+export function warningSummary(warning: WarningScreen, onEachOpen: boolean): string {
+  if (warning.challenge === "never") return "Never unlock";
+  if (warning.challenge === "effort") {
+    const method = warning.effortType === "typing" ? "Typing" : warning.effortType === "intent" ? "Write intent" : "Adaptive math";
+    return `Require effort, ${method}`;
+  }
+  const method = onEachOpen || warning.waitType === "fixed" ? "Fixed time" : "Choose each time";
+  return `Wait, ${method}`;
+}
+
+const CHALLENGES: { value: UnlockChallenge; label: string }[] = [
+  { value: "never", label: "Never unlock" },
+  { value: "effort", label: "Require effort" },
+  { value: "wait", label: "Wait" },
+];
+
+function methodOptions(challenge: UnlockChallenge, onEachOpen: boolean): { value: EffortType | WaitType | "none"; label: string }[] {
+  if (challenge === "effort") {
+    return [
+      { value: "typing", label: "Typing" },
+      { value: "intent", label: "Write intent" },
+      { value: "math", label: "Adaptive math" },
+    ];
+  }
+  if (challenge === "wait") {
+    return onEachOpen
+      ? [{ value: "fixed", label: "Fixed time" }]
+      : [{ value: "fixed", label: "Fixed time" }, { value: "dynamic", label: "Choose each time" }];
+  }
+  return [{ value: "none", label: "Not needed" }];
+}
+
+function methodValue(warning: WarningScreen, onEachOpen: boolean): EffortType | WaitType | "none" {
+  if (warning.challenge === "effort") return warning.effortType;
+  if (warning.challenge === "wait") return onEachOpen ? "fixed" : warning.waitType;
+  return "none";
+}
+
+function SelectField<T extends string>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  disabled?: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="label">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as T)}
+        className={`${selectCls} disabled:opacity-40`}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 

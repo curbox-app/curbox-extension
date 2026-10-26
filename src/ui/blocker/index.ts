@@ -1,1 +1,1 @@
-export { GroupManager } from "./GroupManager";
+export { GroupManager, type ScreenBack } from "./GroupManager";

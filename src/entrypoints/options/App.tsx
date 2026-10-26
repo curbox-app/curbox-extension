@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCurbox } from "../../ui/useStore";
 import { UsageView, ErrorBoundary } from "../../ui/components";
-import { GroupManager } from "../../ui/blocker";
+import { GroupManager, type ScreenBack } from "../../ui/blocker";
 import { FocusPanel } from "../../ui/focus";
 import { AboutPanel } from "../../ui/about";
 import { AccountPanel } from "../../ui/account/AccountPanel";
@@ -23,6 +23,7 @@ export function App() {
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>("usage");
   const [reducerPage, setReducerPage] = useState<ReducerPage>(null);
+  const [screenBack, setScreenBack] = useState<ScreenBack | null>(null);
 
   useEffect(() => {
     if (ready) setDraft(settings);
@@ -60,16 +61,25 @@ export function App() {
           {tab === "reducers" && reducerPage === null && <ReducersHome onOpen={setReducerPage} />}
           {tab === "reducers" && reducerPage !== null && (
             <>
-              <button className="mb-5 text-sm font-medium text-primary" onClick={() => setReducerPage(null)}>← Reducers</button>
+              <button
+                className="mb-5 text-sm font-medium text-primary"
+                onClick={() => {
+                  if (reducerPage === "website" && screenBack) screenBack.go();
+                  else {
+                    setScreenBack(null);
+                    setReducerPage(null);
+                  }
+                }}
+              >
+                ← {reducerPage === "website" && screenBack ? screenBack.label : "Reducers"}
+              </button>
               {reducerPage === "website" ? (
-                <>
-                  <GroupManager
-                    groups={draft.groups}
-                    focusGroups={draft.focusGroups}
-                    onChange={(groups) => commit({ ...draft, groups })}
-                  />
-                  <KeywordHelp />
-                </>
+                <GroupManager
+                  groups={draft.groups}
+                  focusGroups={draft.focusGroups}
+                  onChange={(groups) => commit({ ...draft, groups })}
+                  onBack={setScreenBack}
+                />
               ) : <AccountPanel />}
             </>
           )}
@@ -82,7 +92,7 @@ export function App() {
         {TABS.map((t) => (
           <button
             key={t.value}
-            onClick={() => { setTab(t.value); if (t.value !== "reducers") setReducerPage(null); }}
+            onClick={() => { setTab(t.value); if (t.value !== "reducers") { setReducerPage(null); setScreenBack(null); } }}
             className="flex flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium"
           >
             <span className={`flex h-8 w-16 items-center justify-center rounded-full text-lg ${tab === t.value ? "bg-secondary-chip text-on-secondary" : "text-faint"}`}>
@@ -114,26 +124,3 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
   );
 }
 
-function KeywordHelp() {
-  const rows: [string, string][] = [
-    ["Block a whole site", "youtube.com"],
-    ["Block one section", "youtube.com/shorts"],
-    ["Block a path on any site", "/shorts"],
-    ["Block all subdomains", "*.youtube.com"],
-    ["Block by domain word", "youtube"],
-    ["Advanced match", "r:shorts|reels"],
-  ];
-  return (
-    <div className="card mt-6 p-5">
-      <p className="label mb-3">How to write keywords</p>
-      <div className="flex flex-col gap-2.5">
-        {rows.map(([what, type]) => (
-          <div key={type} className="flex items-center justify-between gap-3 text-xs">
-            <span className="text-muted">{what}</span>
-            <span className="rounded-md bg-surface-2 px-2 py-1 font-mono text-ink">{type}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
