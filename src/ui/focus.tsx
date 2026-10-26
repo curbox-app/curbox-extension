@@ -129,8 +129,7 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="label">Focus stats</p>
+      <div className="flex justify-end">
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -182,6 +181,13 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
       </div>
     </div>
   );
+}
+
+function statsSummary(log: FocusLogEntry[]): string {
+  if (log.length === 0) return "No sessions yet";
+  const total = log.reduce((sum, entry) => sum + entry.actualMs, 0);
+  const sessions = log.length === 1 ? "1 session" : `${log.length} sessions`;
+  return `${sessions}, ${msToHuman(total)}`;
 }
 
 function computeStreak(log: FocusLogEntry[]): number {
@@ -324,6 +330,22 @@ export function FocusPanel({
   // the start-a-session card never reacts to a half-made group, and cancelling
   // leaves nothing behind.
   const [editing, setEditing] = useState<{ group: FocusGroup; isNew: boolean } | null>(null);
+  const [page, setPage] = useState<"home" | "stats">("home");
+
+  if (page === "stats") {
+    return (
+      <div className="flex flex-col gap-6">
+        <button type="button" onClick={() => setPage("home")} className="text-sm font-medium text-primary">
+          ← Focus
+        </button>
+        <div>
+          <h1 className="font-display text-5xl text-ink">Focus stats</h1>
+          <p className="mt-1 text-sm text-muted">Here is how your focus time adds up.</p>
+        </div>
+        <FocusStats log={focusLog} groups={focusGroups} />
+      </div>
+    );
+  }
 
   if (editing) {
     return (
@@ -346,7 +368,13 @@ export function FocusPanel({
   return (
     <div className="flex flex-col gap-8">
       {focus ? <ActiveSession focus={focus} /> : <StartSession groups={focusGroups} onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })} />}
-      <FocusStats log={focusLog} groups={focusGroups} />
+      <button type="button" onClick={() => setPage("stats")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="min-w-0 flex-1">
+          <b className="block text-base text-ink">Focus stats</b>
+          <small className="block truncate text-muted">{statsSummary(focusLog)}</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
       <GroupList
         groups={focusGroups}
         onEdit={(group) => setEditing({ group, isNew: false })}
