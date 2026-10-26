@@ -170,7 +170,7 @@ function pathLabel(path: string): string {
 
 function DomainItem({ row }: { row: DomainRow }) {
   const extra = row.paths.filter((p) => p.path !== "/");
-  const [open, setOpen] = useState(extra.length > 0);
+  const [open, setOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const thread = extra.length > 0 ? extra : row.paths;
   const shown = showAll ? thread : thread.slice(0, 5);
@@ -178,7 +178,9 @@ function DomainItem({ row }: { row: DomainRow }) {
   return (
     <div>
       <button
+        type="button"
         className="flex w-full items-center gap-3.5 py-3 text-left"
+        aria-expanded={extra.length > 0 ? open : undefined}
         onClick={() => extra.length > 0 && setOpen((v) => !v)}
       >
         <Favicon domain={row.domain} />
@@ -187,6 +189,22 @@ function DomainItem({ row }: { row: DomainRow }) {
           <span className="mt-px text-[11px] uppercase tracking-[0.06em] text-faint">{siteCategory(row.domain)}</span>
         </span>
         <span className="tnum shrink-0 text-sm text-muted">{msToWidget(row.ms)}</span>
+        {extra.length > 0 && (
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className={`shrink-0 text-faint transition ${open ? "rotate-90" : ""}`}
+          >
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        )}
       </button>
       {open && extra.length > 0 && (
         <div className="-mt-1 flex flex-col pb-2 pl-[54px] pr-1">
