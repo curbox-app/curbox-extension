@@ -35,7 +35,7 @@ function UsageHeader({ day, ms, compact }: { day: DateKey; ms: number; compact?:
 function AsciiWatermark({ ascii, compact }: { ascii: string; compact?: boolean }) {
   return (
     <div
-      className={`pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center overflow-hidden ${compact ? "h-[220px]" : "h-[380px]"}`}
+      className={`pointer-events-none absolute inset-x-0 top-0 z-0 flex items-start justify-start overflow-hidden ${compact ? "h-[220px]" : "h-[380px]"}`}
       style={{
         maskImage: "linear-gradient(to bottom, #000 42%, transparent 96%)",
         WebkitMaskImage: "linear-gradient(to bottom, #000 42%, transparent 96%)",
@@ -43,7 +43,7 @@ function AsciiWatermark({ ascii, compact }: { ascii: string; compact?: boolean }
     >
       <pre
         aria-hidden="true"
-        className="m-0 w-max select-none whitespace-pre text-center font-mono text-[7px] leading-[0.85] text-faint opacity-80"
+        className="m-0 w-max select-none whitespace-pre text-left font-mono text-[7px] leading-[0.85] text-faint opacity-80"
       >
         {ascii}
       </pre>
@@ -92,7 +92,6 @@ function WeeklyBarGraph({
     <div className="flex h-[168px] flex-col px-[12%]">
       <div className="flex flex-1 items-end justify-between">
         {keys.map((key, i) => {
-          const active = key === selected;
           const has = totals[i] > 0;
           const height = has ? Math.max(8, Math.round((totals[i] / max) * barArea)) : 0;
           return (
@@ -104,7 +103,7 @@ function WeeklyBarGraph({
             >
               <span
                 style={{ height }}
-                className={`w-[15px] rounded-[8px] transition-all duration-300 ease-out ${active ? "bg-primary" : "bg-accent"}`}
+                className="w-[15px] rounded-[8px] bg-accent transition-all duration-300 ease-out"
               />
             </button>
           );
@@ -115,7 +114,7 @@ function WeeklyBarGraph({
           <span
             key={key}
             className={`flex-1 text-center text-[11px] ${
-              key === selected ? "font-semibold text-ink" : "text-accent"
+              key === selected ? "font-semibold text-ink" : "text-muted"
             }`}
           >
             {dayLabel(key)}
@@ -274,7 +273,7 @@ export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: b
         <UsageHeader day={selected} ms={total} compact={compact} />
         <div className="mt-6">
           <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
-          <div className="mt-5 flex items-center py-2 text-accent">
+          <div className="mt-5 flex items-center py-2 text-ink">
             <button
               type="button"
               onClick={() => setWeekOffset((o) => o + 1)}
