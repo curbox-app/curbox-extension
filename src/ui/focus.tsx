@@ -4,7 +4,7 @@ import type { FocusGroup, FocusLogEntry, FocusMode, FocusSession } from "../lib/
 import { newFocusGroup } from "../lib/types";
 import { dateKey, dayLabel, lastNDays, msToClock, msToHuman } from "../lib/time";
 import { startSession, endSession } from "../core/focus";
-import { Segmented, Toggle, btnPrimary, btnOutline, btnGhost, inputCls, selectCls } from "./components";
+import { Segmented, Toggle, btnPrimary, btnOutline, btnGhost, inputCls } from "./components";
 import { useDraft } from "./useDraft";
 
 const MODE_OPTIONS: { value: FocusMode; label: string }[] = [
@@ -22,29 +22,129 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function ActiveSession({ focus }: { focus: FocusSession }) {
+function ActiveSession({ focus, compact }: { focus: FocusSession; compact?: boolean }) {
   const now = useNow(true);
   const remaining = focus.endsAt - now;
+  const stage = compact ? "min-h-[22rem]" : "min-h-[560px]";
   return (
-    <div className="card relative flex flex-col items-center overflow-hidden p-7 text-center">
-      <div className="bloom" aria-hidden="true" />
-      <p className="relative text-sm text-muted">I'm holding your focus right now.</p>
-      <p className="font-display tnum relative mt-2 text-[56px] leading-none">{msToClock(remaining)}</p>
-      <p className="label relative mt-2">{focus.name}</p>
+    <div className={`flex flex-col items-center justify-end pb-4 text-center ${stage}`}>
+      <p className="text-sm text-muted">I'm holding your focus right now.</p>
+      <p className="font-display tnum mt-2 text-[56px] leading-none text-ink">{msToClock(remaining)}</p>
+      <p className="label mt-3">{focus.name}</p>
       {focus.exitable ? (
-        <button onClick={() => void endSession()} className={`relative mt-5 ${btnGhost}`}>
+        <button onClick={() => void endSession()} className={`mt-8 w-full ${btnPrimary}`}>
           End session
         </button>
       ) : (
-        <p className="relative mt-5 text-xs text-muted">I'll stay until the timer is done.</p>
+        <p className="mt-5 text-xs text-muted">I'll stay until the timer is done.</p>
       )}
     </div>
   );
 }
 
-function StartSession({ groups, onCreate, compact }: { groups: FocusGroup[]; onCreate: () => void; compact?: boolean }) {
+function GroupSelector({
+  groups,
+  selectedId,
+  onSelect,
+  onEdit,
+  onDelete,
+  onCreate,
+}: {
+  groups: FocusGroup[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onEdit: (group: FocusGroup) => void;
+  onDelete: (id: string) => void;
+  onCreate: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = groups.find((g) => g.id === selectedId) ?? groups[0];
+
+  return (
+    <div className="relative mt-5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 rounded-2xl bg-card px-4 py-3 text-left text-sm text-ink transition-all duration-200 hover:bg-surface-2"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium truncate">{selected?.name ?? "Select group"}</span>
+          {selected && (
+            <span className="block mt-0.5 text-xs text-muted">
+              {selected.mode === "only-these" ? "Blocks" : "Allows only"} {selected.domains.length} site
+              {selected.domains.length === 1 ? "" : "s"}
+              {selected.exitable ? "" : " · locked"}
+            </span>
+          )}
+        </span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`shrink-0 text-faint transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="rise absolute inset-x-0 top-full z-20 mt-1.5 flex flex-col rounded-2xl bg-card shadow-float overflow-hidden">
+          {groups.map((g) => {
+            const active = g.id === selectedId;
+            return (
+              <div key={g.id} className={`flex items-center gap-2 px-2 py-1 transition-colors ${active ? "bg-state" : ""}`}>
+                <button
+                  type="button"
+                  onClick={() => { onSelect(g.id); setOpen(false); }}
+                  className="min-w-0 flex-1 rounded-xl px-2 py-2 text-left transition-colors hover:bg-state"
+                >
+                  <span className="block truncate text-sm font-medium text-ink">{g.name}</span>
+                  <span className="block mt-0.5 text-[11px] text-muted">
+                    {g.mode === "only-these" ? "Blocks" : "Allows only"} {g.domains.length} site{g.domains.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onEdit(g); setOpen(false); }}
+                  aria-label={`Edit ${g.name}`}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-faint transition-colors hover:bg-state hover:text-ink"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onDelete(g.id); setOpen(false); }}
+                  aria-label={`Delete ${g.name}`}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-faint transition-colors hover:bg-error-container hover:text-error"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                </button>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => { onCreate(); setOpen(false); }}
+            className="flex items-center gap-2 border-t border-line/70 px-4 py-3 text-sm text-primary transition-colors hover:bg-state"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            New focus group
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StartSession({
+  groups,
+  onCreate,
+  onEdit,
+  onDelete,
+  compact,
+}: {
+  groups: FocusGroup[];
+  onCreate: () => void;
+  onEdit: (group: FocusGroup) => void;
+  onDelete: (id: string) => void;
+  compact?: boolean;
+}) {
   const stage = compact ? "min-h-[22rem]" : "min-h-[560px]";
-  const digits = compact ? "text-[88px]" : "text-[112px]";
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [minutes, setMinutes] = useState(25);
 
@@ -57,14 +157,24 @@ function StartSession({ groups, onCreate, compact }: { groups: FocusGroup[]; onC
     });
   }, []);
 
+  const stepDown = () => setMinutes((m) => Math.max(1, m - 5));
+  const stepUp = () => setMinutes((m) => m + 5);
+
+  const durationPicker = (
+    <div className="flex items-center justify-center gap-5">
+      <button type="button" onClick={stepDown} className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-lg text-muted transition-colors hover:text-ink">−</button>
+      <div className="flex items-baseline justify-center">
+        <input type="number" aria-label="Focus duration" min={1} value={minutes} onChange={(e) => setMinutes(Math.max(1, Math.floor(Number(e.target.value)) || 1))} className="font-display tnum w-24 bg-transparent text-center text-[56px] leading-none text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+        <span className="text-xl text-muted">m</span>
+      </div>
+      <button type="button" onClick={stepUp} className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-lg text-muted transition-colors hover:text-ink">+</button>
+    </div>
+  );
+
   if (groups.length === 0) {
     return (
       <div className={`flex flex-col justify-end pb-4 ${stage}`}>
-        <div className="flex items-end justify-center gap-2 text-center">
-          <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className={`font-display tnum w-56 bg-transparent text-right leading-none outline-none ${digits}`} />
-          <span className="mb-3 text-xl text-muted">mins</span>
-        </div>
-        <FocusRuler minutes={minutes} setMinutes={setMinutes} />
+        {durationPicker}
         <button onClick={onCreate} className={`mt-10 w-full ${btnPrimary}`}>Create Focus Group</button>
       </div>
     );
@@ -74,32 +184,18 @@ function StartSession({ groups, onCreate, compact }: { groups: FocusGroup[]; onC
 
   return (
     <div className={`flex flex-col justify-end pb-4 ${stage}`}>
-      <div className="text-center">
-        <input aria-label="Focus duration" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Math.max(1, Math.floor(Number(event.target.value)) || 1))} className={`font-display tnum w-56 bg-transparent text-right leading-none outline-none ${digits}`} />
-        <span className="ml-1 text-xl text-muted">mins</span>
-      </div>
-      <FocusRuler minutes={minutes} setMinutes={setMinutes} />
-      <select value={group.id} onChange={(e) => setGroupId(e.target.value)} className={`mt-5 ${selectCls}`}>
-        {groups.map((g) => (
-          <option key={g.id} value={g.id}>
-            {g.name}
-          </option>
-        ))}
-      </select>
+      {durationPicker}
+      <GroupSelector
+        groups={groups}
+        selectedId={group.id}
+        onSelect={setGroupId}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onCreate={onCreate}
+      />
       <button onClick={() => void browser.storage.local.set({ "ui.lastFocusDuration": minutes, "ui.lastFocusGroupId": group.id }).then(() => startSession(group, minutes, group.exitable))} className={`mt-8 w-full ${btnPrimary}`}>
         Start focus
       </button>
-    </div>
-  );
-}
-
-function FocusRuler({ minutes, setMinutes }: { minutes: number; setMinutes: (n: number) => void }) {
-  return (
-    <div className="relative mt-8 h-16">
-      <div className="absolute inset-0 flex items-center justify-between px-2" aria-hidden="true">
-        {Array.from({ length: 19 }, (_, i) => <span key={i} className={`w-px ${i === 9 ? "h-12 bg-primary" : i % 4 === 0 ? "h-10 bg-muted" : "h-7 bg-faint/60"}`} />)}
-      </div>
-      <input aria-label="Quick focus duration" type="range" min={1} max={240} step={1} value={Math.min(240, minutes)} onChange={(e) => setMinutes(Number(e.target.value))} className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0" />
     </div>
   );
 }
@@ -185,12 +281,7 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
   );
 }
 
-function statsSummary(log: FocusLogEntry[]): string {
-  if (log.length === 0) return "No sessions yet";
-  const total = log.reduce((sum, entry) => sum + entry.actualMs, 0);
-  const sessions = log.length === 1 ? "1 session" : `${log.length} sessions`;
-  return `${sessions}, ${msToHuman(total)}`;
-}
+
 
 function computeStreak(log: FocusLogEntry[]): number {
   const days = new Set(log.map((e) => e.day));
@@ -282,41 +373,6 @@ function GroupEditor({
   );
 }
 
-function GroupList({
-  groups,
-  onEdit,
-  onCreate,
-  onRemove,
-}: {
-  groups: FocusGroup[];
-  onEdit: (group: FocusGroup) => void;
-  onCreate: () => void;
-  onRemove: (id: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="label mb-1">Focus groups</p>
-      {groups.map((group) => (
-        <div key={group.id} className="flex items-center justify-between border-b border-line/70 py-3">
-          <button className="-mx-2 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-state" onClick={() => onEdit(group)}>
-            <p className="text-sm">{group.name}</p>
-            <p className="text-xs text-muted">
-              {group.mode === "only-these" ? "Blocks" : "Allows only"} {group.domains.length} site
-              {group.domains.length === 1 ? "" : "s"}
-            </p>
-          </button>
-          <button onClick={() => onRemove(group.id)} className="text-xs text-faint transition-colors hover:text-ink">
-            Remove
-          </button>
-        </div>
-      ))}
-      <button onClick={onCreate} className={`mt-3 self-start ${btnOutline}`}>
-        + Create focus group
-      </button>
-    </div>
-  );
-}
-
 export function FocusPanel({
   focus,
   focusGroups,
@@ -335,6 +391,10 @@ export function FocusPanel({
   // leaves nothing behind.
   const [editing, setEditing] = useState<{ group: FocusGroup; isNew: boolean } | null>(null);
   const [page, setPage] = useState<"home" | "stats">("home");
+
+  const handleCreate = () => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true });
+  const handleEdit = (group: FocusGroup) => setEditing({ group, isNew: false });
+  const handleDelete = (id: string) => onChangeGroups(focusGroups.filter((g) => g.id !== id));
 
   if (page === "stats") {
     return (
@@ -370,21 +430,26 @@ export function FocusPanel({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      {focus ? <ActiveSession focus={focus} /> : <StartSession compact={compact} groups={focusGroups} onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })} />}
-      <button type="button" onClick={() => setPage("stats")} className="card flex items-center gap-4 p-5 text-left">
-        <span className="min-w-0 flex-1">
-          <b className="block text-base text-ink">Focus stats</b>
-          <small className="block truncate text-muted">{statsSummary(focusLog)}</small>
-        </span>
-        <span className="text-faint">›</span>
+    <div className="relative flex flex-col gap-8">
+      <button
+        type="button"
+        onClick={() => setPage("stats")}
+        aria-label="Focus stats"
+        className="absolute right-0 top-0 z-10 grid h-9 w-9 place-items-center rounded-xl text-faint transition-colors hover:bg-state hover:text-ink"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></svg>
       </button>
-      <GroupList
-        groups={focusGroups}
-        onEdit={(group) => setEditing({ group, isNew: false })}
-        onCreate={() => setEditing({ group: newFocusGroup(`Focus ${focusGroups.length + 1}`), isNew: true })}
-        onRemove={(id) => onChangeGroups(focusGroups.filter((g) => g.id !== id))}
-      />
+      {focus ? (
+        <ActiveSession focus={focus} />
+      ) : (
+        <StartSession
+          compact={compact}
+          groups={focusGroups}
+          onCreate={handleCreate}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   );
 }
