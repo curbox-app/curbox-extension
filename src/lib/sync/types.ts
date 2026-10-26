@@ -27,6 +27,7 @@ export function canonicalFocusGroupJson(p: FocusGroupPayload): string {
 }
 
 export interface SyncStatus {
+  available: boolean;
   signedIn: boolean;
   email: string | null;
   hasVault: boolean;
@@ -43,7 +44,7 @@ export interface SyncStatus {
 export interface SyncBillingStatus {
   required: boolean;
   entitled: boolean;
-  provider: "polar" | "google_play" | "manual" | null;
+  provider: string | null;
   price: string;
   validUntil: string | null;
   cancelAtPeriodEnd: boolean;
@@ -117,6 +118,7 @@ export function normalizeSyncStatus(value: unknown): SyncStatus {
     : [];
 
   return {
+    available: typeof raw.available === "boolean" ? raw.available : true,
     signedIn: unlocked || raw.signedIn === true,
     email: nullableString(raw.email),
     hasVault: unlocked || raw.hasVault === true,
@@ -138,9 +140,7 @@ export function normalizeSyncStatus(value: unknown): SyncStatus {
     billing: {
       required: typeof rawBilling.required === "boolean" ? rawBilling.required : DEFAULT_SYNC_BILLING.required,
       entitled: typeof rawBilling.entitled === "boolean" ? rawBilling.entitled : DEFAULT_SYNC_BILLING.entitled,
-      provider: rawBilling.provider === "polar" || rawBilling.provider === "google_play" || rawBilling.provider === "manual"
-        ? rawBilling.provider
-        : null,
+      provider: typeof rawBilling.provider === "string" && rawBilling.provider ? rawBilling.provider : null,
       price: typeof rawBilling.price === "string" ? rawBilling.price : DEFAULT_SYNC_BILLING.price,
       validUntil: nullableString(rawBilling.validUntil),
       cancelAtPeriodEnd: rawBilling.cancelAtPeriodEnd === true,

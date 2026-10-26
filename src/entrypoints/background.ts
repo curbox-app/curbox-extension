@@ -194,6 +194,7 @@ function applyIdleState(state: "active" | "idle" | "locked"): void {
 }
 
 export default defineBackground(() => {
+  // Call registerSyncProvider before this when a remote sync service is connected.
   void sync.start().catch(() => undefined);
 
   // Smallest interval the API allows, so a closed lid stops counting promptly.

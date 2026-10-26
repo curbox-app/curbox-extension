@@ -1,5 +1,4 @@
 import { browser } from "#imports";
-import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import {
   decryptRecord,
   deriveKEK,
@@ -16,7 +15,6 @@ import {
   buildPairingPayload,
   parsePairingPayload,
 } from "../crypto";
-import { getSupabase } from "../supabase";
 import { dateKey } from "../time";
 import { get, isApplyingRemote, setFromRemote, watch } from "../storage";
 import type { FocusGroup, FocusMode, FocusSession, Settings, UsageHistory } from "../types";
@@ -47,12 +45,14 @@ import {
   NS_FOCUS_GROUPS,
   NS_USAGE_WEB,
   type FocusGroupPayload,
+  DEFAULT_SYNC_BILLING,
   type SyncStatus,
   type SyncBillingStatus,
   type SyncDevice,
   type SyncPreferences,
   type UsageWebPayload,
 } from "./types";
+import { getSyncProvider, type SyncProvider, type SyncRecord } from "./provider";
 
 const PLATFORM = "ext";
 const PUSH_DEBOUNCE_MS = 1500;
@@ -69,12 +69,13 @@ interface SyncRow {
 }
 
 export class SyncEngine {
-  private sb: SupabaseClient = getSupabase();
   private dek: CryptoKey | null = null;
   private dekBytes: Uint8Array | null = null;
   private userId: string | null = null;
+  private email: string | null = null;
   private deviceId: string | null = null;
-  private channel: RealtimeChannel | null = null;
+  private unsubscribeAuth: (() => void) | null = null;
+  private unsubscribeRemote: (() => void) | null = null;
   private configPushTimer: ReturnType<typeof setTimeout> | null = null;
   private usagePushTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConfigJson: string | null = null; // echo suppression for config
@@ -92,29 +93,32 @@ export class SyncEngine {
   private devices: SyncDevice[] = [];
   private pullQueue: Promise<void> = Promise.resolve();
   private signedInInit: Promise<void> | null = null;
-  private billing: SyncBillingStatus = {
-    required: true,
-    entitled: false,
-    provider: null,
-    price: "$25/year",
-    validUntil: null,
-    cancelAtPeriodEnd: false,
-  };
+  private billing: SyncBillingStatus = { ...DEFAULT_SYNC_BILLING, entitled: false };
+
+  private provider(): SyncProvider {
+    const provider = getSyncProvider();
+    if (!provider) throw new Error("Sync is not connected");
+    return provider;
+  }
+
+  private rememberUser(user: { id: string; email: string | null } | null): void {
+    this.userId = user?.id ?? null;
+    this.email = user?.email ?? null;
+  }
 
   async start(): Promise<void> {
-    if (this.starting) return;
+    if (this.starting || !getSyncProvider()) return;
     this.starting = true;
     this.deviceId = await getDeviceId();
     this.preferences = await getSyncPreferences();
 
-    this.sb.auth.onAuthStateChange((_event, session) => {
-      this.userId = session?.user.id ?? null;
+    this.unsubscribeAuth = this.provider().onAuthChange((user) => {
+      this.rememberUser(user);
       if (this.userId) void this.onSignedIn().catch((err) => this.recordError(err));
       else void this.teardown();
     });
 
-    const { data } = await this.sb.auth.getSession();
-    this.userId = data.session?.user.id ?? null;
+    this.rememberUser(await this.provider().currentUser());
     if (this.userId) await this.onSignedIn();
 
     watch((changed) => {
@@ -189,28 +193,24 @@ export class SyncEngine {
     if (this.usagePushTimer) clearTimeout(this.usagePushTimer);
     this.configPushTimer = null;
     this.usagePushTimer = null;
-    if (this.channel) {
-      await this.sb.removeChannel(this.channel);
-      this.channel = null;
+    if (this.unsubscribeRemote) {
+      this.unsubscribeRemote();
+      this.unsubscribeRemote = null;
     }
   }
 
   async refreshEntitlement(): Promise<void> {
-    if (!this.userId) {
+    if (!getSyncProvider() || !this.userId) {
       this.billing = { ...this.billing, entitled: false, provider: null, validUntil: null, cancelAtPeriodEnd: false };
       return;
     }
     const wasEntitled = this.billing.entitled;
-    const { data, error } = await this.sb.functions.invoke("sync-entitlement", { body: {} });
-    if (error) throw error;
-    const result = (data ?? {}) as Partial<SyncBillingStatus>;
+    const result = await this.provider().refreshEntitlement(this.userId);
     this.billing = {
-      required: true,
+      required: result.required === true,
       entitled: result.entitled === true,
-      provider: result.provider === "polar" || result.provider === "google_play" || result.provider === "manual"
-        ? result.provider
-        : null,
-      price: typeof result.price === "string" ? result.price : "$25/year",
+      provider: typeof result.provider === "string" && result.provider ? result.provider : null,
+      price: typeof result.price === "string" ? result.price : this.billing.price,
       validUntil: typeof result.validUntil === "string" ? result.validUntil : null,
       cancelAtPeriodEnd: result.cancelAtPeriodEnd === true,
     };
@@ -220,12 +220,8 @@ export class SyncEngine {
 
   async billingUrl(action: "checkout" | "manage"): Promise<string> {
     if (!this.userId) throw new Error("sign in first");
-    const { data, error } = await this.sb.functions.invoke("polar-checkout", {
-      body: { action: action === "manage" ? "manage" : "checkout" },
-    });
-    if (error) throw error;
-    const url = (data as { url?: unknown } | null)?.url;
-    if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("billing did not return a safe checkout link");
+    const url = await this.provider().billingUrl(this.userId, action === "manage" ? "manage" : "checkout");
+    if (!url.startsWith("https://")) throw new Error("billing did not return a safe checkout link");
     return url;
   }
 
@@ -236,49 +232,35 @@ export class SyncEngine {
   // Auth -----------------------------------------------------------------
 
   async signUp(email: string, password: string): Promise<void> {
-    const { data, error } = await this.sb.auth.signUp({ email, password });
-    if (error) throw error;
-    // With email confirmation on, no session comes back yet. Ask for the code.
-    if (!data.session) this.pendingEmail = email;
+    const result = await this.provider().signUp(email, password);
+    if (result.pendingVerification) this.pendingEmail = email;
   }
 
   async signIn(email: string, password: string): Promise<void> {
-    const { error } = await this.sb.auth.signInWithPassword({ email, password });
-    if (error) {
-      if (/confirm/i.test(error.message)) {
-        this.pendingEmail = email;
-        return;
-      }
-      throw error;
-    }
+    const result = await this.provider().signIn(email, password);
+    if (result.pendingVerification) this.pendingEmail = email;
   }
 
   async verifyCode(email: string, code: string): Promise<void> {
-    const { error } = await this.sb.auth.verifyOtp({ email, token: code.trim(), type: "signup" });
-    if (error) throw error;
+    await this.provider().verifyCode(email, code);
     this.pendingEmail = null;
   }
 
   async resendCode(email: string): Promise<void> {
-    const { error } = await this.sb.auth.resend({ type: "signup", email });
-    if (error) throw error;
+    await this.provider().resendCode(email);
   }
 
   async sendReset(email: string): Promise<void> {
-    const { error } = await this.sb.auth.resetPasswordForEmail(email);
-    if (error) throw error;
+    await this.provider().sendReset(email);
   }
 
   async resetPassword(email: string, code: string, password: string): Promise<void> {
-    const { error } = await this.sb.auth.verifyOtp({ email, token: code.trim(), type: "recovery" });
-    if (error) throw error;
-    const { error: upErr } = await this.sb.auth.updateUser({ password });
-    if (upErr) throw upErr;
+    await this.provider().resetPassword(email, code, password);
     this.pendingEmail = null;
   }
 
   async signOut(): Promise<void> {
-    await this.sb.auth.signOut({ scope: "local" });
+    await this.provider().signOut();
     // Let an already-running pull finish before clearing so it cannot restore
     // decrypted cache entries after the account has been removed locally.
     await this.pullQueue.catch(() => undefined);
@@ -290,6 +272,7 @@ export class SyncEngine {
     this.knownFocusGroupIds.clear();
     this.deviceId = null;
     this.devices = [];
+    this.email = null;
     this.preferences = { ...this.preferences, usageDeviceIds: [] };
     this.lastSync = null;
     this.lastError = null;
@@ -301,19 +284,9 @@ export class SyncEngine {
   private async fetchVault(): Promise<VaultMeta | null> {
     if (!this.userId) return null;
     this.requirePremium();
-    const { data, error } = await this.sb
-      .from("vault")
-      .select("kdf_salt, kdf_params, wrapped_dek")
-      .eq("user_id", this.userId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
-    return {
-      userId: this.userId,
-      saltB64: data.kdf_salt as string,
-      params: data.kdf_params as VaultMeta["params"],
-      wrappedB64: data.wrapped_dek as string,
-    };
+    const vault = await this.provider().fetchVault(this.userId);
+    if (!vault) return null;
+    return { userId: this.userId, ...vault };
   }
 
   // First time setup: generate a fresh data key, wrap it under the passphrase,
@@ -337,13 +310,11 @@ export class SyncEngine {
       params: DEFAULT_KDF_PARAMS,
       wrappedB64: toBase64Url(wrapped),
     };
-    const { error } = await this.sb.from("vault").insert({
-      user_id: this.userId,
-      kdf_salt: meta.saltB64,
-      kdf_params: meta.params,
-      wrapped_dek: meta.wrappedB64,
+    await this.provider().createVault(this.userId, {
+      saltB64: meta.saltB64,
+      params: meta.params,
+      wrappedB64: meta.wrappedB64,
     });
-    if (error) throw error;
 
     await this.adoptDek(dekBytes, meta);
     await this.onSignedIn();
@@ -395,29 +366,24 @@ export class SyncEngine {
   private async registerDevice(): Promise<void> {
     if (!this.billing.entitled) return;
     if (!this.userId || !this.deviceId) return;
-    const { error } = await this.sb.from("devices").upsert(
-      {
-        id: this.deviceId,
-        user_id: this.userId,
-        platform: `${PLATFORM}-${this.browserLabel()}`,
-        label: this.browserLabel(),
-        last_seen: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    );
-    if (error) throw error;
+    await this.provider().upsertDevice({
+      id: this.deviceId,
+      userId: this.userId,
+      platform: `${PLATFORM}-${this.browserLabel()}`,
+      label: this.browserLabel(),
+      lastSeen: new Date().toISOString(),
+    });
   }
 
   private async refreshDevices(): Promise<void> {
     if (!this.billing.entitled) return;
     if (!this.userId) return;
-    const { data, error } = await this.sb.from("devices").select("id, platform, label, last_seen").eq("user_id", this.userId).order("last_seen", { ascending: false });
-    if (error) throw error;
-    this.devices = (data ?? []).map((d) => ({
-      id: d.id as string,
-      platform: d.platform as string,
-      label: ((d.label as string | null) || (d.platform as string) || "Device").trim(),
-      lastSeen: d.last_seen as string | null,
+    const devices = await this.provider().listDevices(this.userId);
+    this.devices = devices.map((d) => ({
+      id: d.id,
+      platform: d.platform,
+      label: (d.label || d.platform || "Device").trim(),
+      lastSeen: d.lastSeen,
       current: d.id === this.deviceId,
     }));
   }
@@ -426,8 +392,7 @@ export class SyncEngine {
     this.requirePremium();
     const label = name.trim().slice(0, 60);
     if (!label || !this.userId || !this.deviceId) throw new Error("Enter a device name");
-    const { error } = await this.sb.from("devices").update({ label }).eq("id", this.deviceId).eq("user_id", this.userId);
-    if (error) throw error;
+    await this.provider().renameDevice(this.userId, this.deviceId, label);
     await this.refreshDevices();
   }
 
@@ -456,15 +421,10 @@ export class SyncEngine {
   // Realtime -------------------------------------------------------------
 
   private async subscribe(): Promise<void> {
-    if (this.channel || !this.userId || !this.billing.entitled) return;
-    this.channel = this.sb
-      .channel(`sync:${this.userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "sync_records", filter: `user_id=eq.${this.userId}` },
-        () => void this.pullSinceCursor().catch(() => undefined),
-      )
-      .subscribe();
+    if (this.unsubscribeRemote || !this.userId || !this.billing.entitled) return;
+    this.unsubscribeRemote = await this.provider().subscribe(this.userId, () => {
+      void this.pullSinceCursor().catch(() => undefined);
+    });
   }
 
   // Pull -----------------------------------------------------------------
@@ -494,27 +454,8 @@ export class SyncEngine {
     let usageChanged = false;
 
     for (;;) {
-      let query = this.sb
-        .from("sync_records")
-        .select("id, namespace, record_key, device_id, ciphertext, version, deleted, updated_at")
-        .eq("user_id", this.userId)
-        .order("updated_at", { ascending: true })
-        .order("id", { ascending: true })
-        .limit(500);
-      if (after) {
-        query = query.or(
-          `updated_at.gt.${after.updatedAt},and(updated_at.eq.${after.updatedAt},id.gt.${after.id})`,
-        );
-      } else {
-        // Always replay the cursor timestamp. A new row can receive the exact
-        // same server timestamp with an id that sorts before our last id; tuple
-        // filtering alone would otherwise lose it forever. Record replacement
-        // and canonical echo suppression make this boundary replay idempotent.
-        query = query.gte("updated_at", cursor.updatedAt);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      const rows = (data ?? []) as SyncRow[];
+      const page = await this.provider().pullPage(this.userId, { after, since: cursor, limit: 500 });
+      const rows = page.map((record) => this.toSyncRow(record));
       if (rows.length === 0) break;
       foundRows = true;
 
@@ -894,20 +835,18 @@ export class SyncEngine {
   ): Promise<void> {
     this.requirePremium();
     if (!this.userId || !this.deviceId) throw new Error("sign in first");
-    const { error } = await this.sb.from("sync_records").upsert(
-      {
-        user_id: this.userId,
+    try {
+      await this.provider().upsertRecord({
+        userId: this.userId,
         namespace,
-        record_key: recordKey,
-        device_id: this.deviceId,
+        recordKey,
+        deviceId: this.deviceId,
         ciphertext: toBase64Url(blob),
         version: Date.now(),
         deleted,
-      },
-      { onConflict: "user_id,namespace,record_key" },
-    );
-    if (error) {
-      this.lastError = error.message;
+      });
+    } catch (error) {
+      this.lastError = String((error as Error)?.message ?? error);
       throw error;
     }
     this.lastError = null;
@@ -963,9 +902,42 @@ export class SyncEngine {
 
   // Status ---------------------------------------------------------------
 
+  private toSyncRow(record: SyncRecord): SyncRow {
+    return {
+      id: record.id,
+      namespace: record.namespace,
+      record_key: record.recordKey,
+      device_id: record.deviceId,
+      ciphertext: record.ciphertext,
+      version: record.version,
+      deleted: record.deleted,
+      updated_at: record.updatedAt,
+    };
+  }
+
   async status(): Promise<SyncStatus> {
-    const { data } = await this.sb.auth.getUser();
-    const signedIn = !!data.user;
+    if (!getSyncProvider()) {
+      return {
+        available: false,
+        signedIn: false,
+        email: null,
+        hasVault: false,
+        unlocked: false,
+        deviceId: this.deviceId,
+        lastSync: null,
+        error: null,
+        pendingEmail: null,
+        devices: [],
+        preferences: this.preferences,
+        billing: { ...DEFAULT_SYNC_BILLING, required: false, entitled: false },
+      };
+    }
+    try {
+      this.rememberUser(await this.provider().currentUser());
+    } catch (error) {
+      this.recordError(error);
+    }
+    const signedIn = this.userId !== null;
     if (signedIn) {
       try { await this.refreshEntitlement(); } catch (error) { this.recordError(error); }
     }
@@ -979,8 +951,9 @@ export class SyncEngine {
       try { await this.refreshDevices(); } catch { /* keep the last known list offline */ }
     }
     return {
+      available: true,
       signedIn,
-      email: data.user?.email ?? null,
+      email: this.email,
       hasVault,
       unlocked: this.billing.entitled && this.dek !== null,
       deviceId: this.deviceId,

@@ -12,6 +12,16 @@ export function AccountPanel() {
   const [resetEmail, setResetEmail] = useState("");
 
   if (!status) return <p className="text-sm text-muted">One moment...</p>;
+  if (!status.available) {
+    return (
+      <div className="card flex flex-col gap-4 p-6">
+        <div>
+          <p className="font-display text-3xl leading-none">Sync is not connected</p>
+          <p className="mt-2 text-sm text-muted">I keep your settings and stats on this browser for now.</p>
+        </div>
+      </div>
+    );
+  }
 
   const shell = (children: React.ReactNode, title: string, subtitle: string) => (
     <div className="card flex flex-col gap-4 p-6">
@@ -70,9 +80,9 @@ function Paywall({ status, busy, error, run }: { status: SyncStatus; busy: boole
         </p>
       </div>
       {error && <Banner text={error} />}
-      <p className="text-lg font-semibold text-ink">$25 per year</p>
+      <p className="text-lg font-semibold text-ink">{status.billing.price}</p>
       <Btn busy={busy} onClick={() => void run({ type: "sync:subscribe" })}>
-        Subscribe with Polar
+        Subscribe
       </Btn>
       <Btn ghost busy={busy} onClick={() => void run({ type: "sync:refreshEntitlement" })}>
         I completed checkout
@@ -386,7 +396,7 @@ function Unlocked({ status, busy, error, run }: { status: SyncStatus; busy: bool
       </div>
 
       <div className="border-t border-line pt-4">
-        {status.billing.provider === "polar" && (
+        {status.billing.provider && (
           <div className="mb-2">
             <Btn ghost busy={busy} onClick={() => void run({ type: "sync:manageSubscription" })}>
               Manage subscription

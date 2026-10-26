@@ -13,6 +13,7 @@ describe("sync status normalization", () => {
       error: null,
       pendingEmail: null,
     })).toEqual({
+      available: true,
       signedIn: true,
       email: "person@example.com",
       hasVault: true,

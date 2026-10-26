@@ -55,7 +55,7 @@ You can add your own message, require completed focus time first, and cap how ma
 
 ### Encrypted Sync
 
-Sync browser settings, focus groups and sessions, and four weeks of browsing usage through the same end-to-end encrypted Curbox account used by Android. Device filters, pairing codes, explicit manual sync, deletions, and account-local device identities follow the Android sync contract.
+Sync is not connected in this build. Settings and stats stay on this browser. The local encryption and merge path is ready for a future sync service, so adding one does not mean rewriting the rest of Curbox.
 
 ## Installation
 

@@ -16,5 +16,4 @@ graphify-out
 .env.development.local
 .env.test.local
 .env.production.local
-supabase/.env.billing
 package-lock.json
