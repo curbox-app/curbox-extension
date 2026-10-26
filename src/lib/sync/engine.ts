@@ -48,6 +48,7 @@ import {
   NS_USAGE_WEB,
   type FocusGroupPayload,
   type SyncStatus,
+  type SyncBillingStatus,
   type SyncDevice,
   type SyncPreferences,
   type UsageWebPayload,
@@ -91,6 +92,14 @@ export class SyncEngine {
   private devices: SyncDevice[] = [];
   private pullQueue: Promise<void> = Promise.resolve();
   private signedInInit: Promise<void> | null = null;
+  private billing: SyncBillingStatus = {
+    required: true,
+    entitled: false,
+    provider: null,
+    price: "$25/year",
+    validUntil: null,
+    cancelAtPeriodEnd: false,
+  };
 
   async start(): Promise<void> {
     if (this.starting) return;
@@ -128,6 +137,11 @@ export class SyncEngine {
   }
 
   private async initializeSignedIn(): Promise<void> {
+    await this.refreshEntitlement();
+    if (!this.billing.entitled) {
+      await this.stopSyncNetwork();
+      return;
+    }
     const localVault = await getVaultMeta();
     if (localVault && localVault.userId !== this.userId) {
       // A browser profile can authenticate a different account without the old
@@ -164,6 +178,13 @@ export class SyncEngine {
   }
 
   private async teardown(): Promise<void> {
+    await this.stopSyncNetwork();
+    this.billing = { ...this.billing, entitled: false, provider: null, validUntil: null, cancelAtPeriodEnd: false };
+    this.dek = null;
+    this.dekBytes = null;
+  }
+
+  private async stopSyncNetwork(): Promise<void> {
     if (this.configPushTimer) clearTimeout(this.configPushTimer);
     if (this.usagePushTimer) clearTimeout(this.usagePushTimer);
     this.configPushTimer = null;
@@ -172,8 +193,44 @@ export class SyncEngine {
       await this.sb.removeChannel(this.channel);
       this.channel = null;
     }
-    this.dek = null;
-    this.dekBytes = null;
+  }
+
+  async refreshEntitlement(): Promise<void> {
+    if (!this.userId) {
+      this.billing = { ...this.billing, entitled: false, provider: null, validUntil: null, cancelAtPeriodEnd: false };
+      return;
+    }
+    const wasEntitled = this.billing.entitled;
+    const { data, error } = await this.sb.functions.invoke("sync-entitlement", { body: {} });
+    if (error) throw error;
+    const result = (data ?? {}) as Partial<SyncBillingStatus>;
+    this.billing = {
+      required: true,
+      entitled: result.entitled === true,
+      provider: result.provider === "polar" || result.provider === "google_play" || result.provider === "manual"
+        ? result.provider
+        : null,
+      price: typeof result.price === "string" ? result.price : "$25/year",
+      validUntil: typeof result.validUntil === "string" ? result.validUntil : null,
+      cancelAtPeriodEnd: result.cancelAtPeriodEnd === true,
+    };
+    if (wasEntitled && !this.billing.entitled) await this.stopSyncNetwork();
+    if (!wasEntitled && this.billing.entitled && !this.signedInInit) await this.onSignedIn();
+  }
+
+  async billingUrl(action: "checkout" | "manage"): Promise<string> {
+    if (!this.userId) throw new Error("sign in first");
+    const { data, error } = await this.sb.functions.invoke("polar-checkout", {
+      body: { action: action === "manage" ? "manage" : "checkout" },
+    });
+    if (error) throw error;
+    const url = (data as { url?: unknown } | null)?.url;
+    if (typeof url !== "string" || !url.startsWith("https://")) throw new Error("billing did not return a safe checkout link");
+    return url;
+  }
+
+  private requirePremium(): void {
+    if (!this.billing.entitled) throw new Error("Sync Premium is required");
   }
 
   // Auth -----------------------------------------------------------------
@@ -243,6 +300,7 @@ export class SyncEngine {
 
   private async fetchVault(): Promise<VaultMeta | null> {
     if (!this.userId) return null;
+    this.requirePremium();
     const { data, error } = await this.sb
       .from("vault")
       .select("kdf_salt, kdf_params, wrapped_dek")
@@ -262,6 +320,7 @@ export class SyncEngine {
   // and store the envelope on the server.
   async setPassphrase(passphrase: string): Promise<void> {
     if (!this.userId) throw new Error("sign in first");
+    this.requirePremium();
     if (passphrase.length < 8) throw new Error("use at least 8 characters for the secret phrase");
     if (passphrase.length > 1024) throw new Error("secret phrase is too long");
     const existing = await this.fetchVault();
@@ -292,6 +351,7 @@ export class SyncEngine {
 
   async unlock(passphrase: string): Promise<void> {
     if (!this.userId) throw new Error("sign in first");
+    this.requirePremium();
     if (passphrase.length > 1024) throw new Error("secret phrase is too long");
     const meta = (await this.fetchVault()) ?? (await getVaultMeta());
     if (!meta) throw new Error("no passphrase set yet");
@@ -307,12 +367,14 @@ export class SyncEngine {
   }
 
   async makePairingCode(): Promise<string> {
+    this.requirePremium();
     if (!this.userId || !this.dekBytes) throw new Error("unlock first");
     return buildPairingPayload(this.userId, this.dekBytes);
   }
 
   async pairWithCode(payload: string): Promise<void> {
     if (!this.userId) throw new Error("sign in first");
+    this.requirePremium();
     const { userId, dek } = parsePairingPayload(payload);
     if (userId !== this.userId) throw new Error("this code is for a different account");
     const meta = (await this.fetchVault()) ?? (await getVaultMeta());
@@ -331,6 +393,7 @@ export class SyncEngine {
   // Devices --------------------------------------------------------------
 
   private async registerDevice(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.userId || !this.deviceId) return;
     const { error } = await this.sb.from("devices").upsert(
       {
@@ -346,6 +409,7 @@ export class SyncEngine {
   }
 
   private async refreshDevices(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.userId) return;
     const { data, error } = await this.sb.from("devices").select("id, platform, label, last_seen").eq("user_id", this.userId).order("last_seen", { ascending: false });
     if (error) throw error;
@@ -359,6 +423,7 @@ export class SyncEngine {
   }
 
   async setDeviceName(name: string): Promise<void> {
+    this.requirePremium();
     const label = name.trim().slice(0, 60);
     if (!label || !this.userId || !this.deviceId) throw new Error("Enter a device name");
     const { error } = await this.sb.from("devices").update({ label }).eq("id", this.deviceId).eq("user_id", this.userId);
@@ -367,6 +432,7 @@ export class SyncEngine {
   }
 
   async setPreferences(preferences: SyncPreferences): Promise<void> {
+    this.requirePremium();
     const requestedIds = [...new Set(preferences.usageDeviceIds)].filter((id) => id !== this.deviceId);
     this.preferences = {
       ...preferences,
@@ -390,7 +456,7 @@ export class SyncEngine {
   // Realtime -------------------------------------------------------------
 
   private async subscribe(): Promise<void> {
-    if (this.channel || !this.userId) return;
+    if (this.channel || !this.userId || !this.billing.entitled) return;
     this.channel = this.sb
       .channel(`sync:${this.userId}`)
       .on(
@@ -404,6 +470,7 @@ export class SyncEngine {
   // Pull -----------------------------------------------------------------
 
   async pullSinceCursor(): Promise<void> {
+    if (!this.billing.entitled) return;
     const run = this.pullQueue.catch(() => undefined).then(() => this.pullSinceCursorLocked());
     this.pullQueue = run;
     try {
@@ -551,6 +618,7 @@ export class SyncEngine {
   }
 
   async pushFocusGroups(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const settings = await get("settings");
@@ -638,6 +706,7 @@ export class SyncEngine {
   }
 
   async pushFocus(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const session = await get("focus");
@@ -762,6 +831,7 @@ export class SyncEngine {
   // Push -----------------------------------------------------------------
 
   private scheduleConfigPush(): void {
+    if (!this.billing.entitled) return;
     if (this.configPushTimer) clearTimeout(this.configPushTimer);
     this.configPushTimer = setTimeout(() => {
       void this.pushConfig().catch((err) => this.recordError(err));
@@ -770,11 +840,13 @@ export class SyncEngine {
   }
 
   private scheduleUsagePush(): void {
+    if (!this.billing.entitled) return;
     if (this.usagePushTimer) clearTimeout(this.usagePushTimer);
     this.usagePushTimer = setTimeout(() => void this.pushUsage().catch((err) => this.recordError(err)), PUSH_DEBOUNCE_MS);
   }
 
   private async pushConfig(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.preferences.reducerConfigs) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const settings = await get("settings");
@@ -787,6 +859,7 @@ export class SyncEngine {
   }
 
   private async pushUsage(): Promise<void> {
+    if (!this.billing.entitled) return;
     if (!this.preferences.usageStats) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
     const usage = await get("usage");
@@ -819,6 +892,7 @@ export class SyncEngine {
     blob: Uint8Array,
     deleted = false,
   ): Promise<void> {
+    this.requirePremium();
     if (!this.userId || !this.deviceId) throw new Error("sign in first");
     const { error } = await this.sb.from("sync_records").upsert(
       {
@@ -840,6 +914,7 @@ export class SyncEngine {
   }
 
   async syncNow(): Promise<void> {
+    this.requirePremium();
     if (!this.dek) throw new Error("unlock sync first");
     await this.registerDevice();
     await this.refreshDevices();
@@ -891,8 +966,11 @@ export class SyncEngine {
   async status(): Promise<SyncStatus> {
     const { data } = await this.sb.auth.getUser();
     const signedIn = !!data.user;
-    let hasVault = false;
     if (signedIn) {
+      try { await this.refreshEntitlement(); } catch (error) { this.recordError(error); }
+    }
+    let hasVault = false;
+    if (signedIn && this.billing.entitled) {
       try {
         hasVault = (await this.fetchVault()) !== null || (await getVaultMeta()) !== null;
       } catch {
@@ -904,13 +982,14 @@ export class SyncEngine {
       signedIn,
       email: data.user?.email ?? null,
       hasVault,
-      unlocked: this.dek !== null,
+      unlocked: this.billing.entitled && this.dek !== null,
       deviceId: this.deviceId,
       lastSync: this.lastSync,
       error: this.lastError,
       pendingEmail: signedIn ? null : this.pendingEmail,
       devices: this.devices,
       preferences: this.preferences,
+      billing: this.billing,
     };
   }
 }

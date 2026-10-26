@@ -27,6 +27,14 @@ describe("sync status normalization", () => {
         reducerConfigs: true,
         usageDeviceIds: [],
       },
+      billing: {
+        required: false,
+        entitled: true,
+        provider: null,
+        price: "$25/year",
+        validUntil: null,
+        cancelAtPeriodEnd: false,
+      },
     });
   });
 
@@ -56,6 +64,30 @@ describe("sync status normalization", () => {
       usageStats: false,
       reducerConfigs: true,
       usageDeviceIds: ["phone-1"],
+    });
+    expect(status.billing.entitled).toBe(true);
+  });
+
+  it("normalizes a premium entitlement from the worker", () => {
+    const status = normalizeSyncStatus({
+      signedIn: true,
+      billing: {
+        required: true,
+        entitled: true,
+        provider: "polar",
+        price: "$25/year",
+        validUntil: "2027-08-03T00:00:00Z",
+        cancelAtPeriodEnd: true,
+      },
+    });
+
+    expect(status.billing).toEqual({
+      required: true,
+      entitled: true,
+      provider: "polar",
+      price: "$25/year",
+      validUntil: "2027-08-03T00:00:00Z",
+      cancelAtPeriodEnd: true,
     });
   });
 });

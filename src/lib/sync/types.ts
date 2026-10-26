@@ -37,6 +37,16 @@ export interface SyncStatus {
   pendingEmail: string | null;
   devices: SyncDevice[];
   preferences: SyncPreferences;
+  billing: SyncBillingStatus;
+}
+
+export interface SyncBillingStatus {
+  required: boolean;
+  entitled: boolean;
+  provider: "polar" | "google_play" | "manual" | null;
+  price: string;
+  validUntil: string | null;
+  cancelAtPeriodEnd: boolean;
 }
 
 export interface SyncDevice {
@@ -59,6 +69,17 @@ export const DEFAULT_SYNC_PREFERENCES: SyncPreferences = {
   usageDeviceIds: [],
 };
 
+export const DEFAULT_SYNC_BILLING: SyncBillingStatus = {
+  // Keep an options page from incorrectly paywalling during the few seconds in
+  // which an extension update can still be talking to its older worker.
+  required: false,
+  entitled: true,
+  provider: null,
+  price: "$25/year",
+  validUntil: null,
+  cancelAtPeriodEnd: false,
+};
+
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
@@ -75,6 +96,7 @@ function nullableString(value: unknown): string | null {
 export function normalizeSyncStatus(value: unknown): SyncStatus {
   const raw = record(value);
   const rawPreferences = record(raw.preferences);
+  const rawBilling = record(raw.billing);
   const unlocked = raw.unlocked === true;
   const usageDeviceIds = Array.isArray(rawPreferences.usageDeviceIds)
     ? [...new Set(rawPreferences.usageDeviceIds.filter((id): id is string => typeof id === "string"))]
@@ -113,6 +135,16 @@ export function normalizeSyncStatus(value: unknown): SyncStatus {
         : DEFAULT_SYNC_PREFERENCES.reducerConfigs,
       usageDeviceIds,
     },
+    billing: {
+      required: typeof rawBilling.required === "boolean" ? rawBilling.required : DEFAULT_SYNC_BILLING.required,
+      entitled: typeof rawBilling.entitled === "boolean" ? rawBilling.entitled : DEFAULT_SYNC_BILLING.entitled,
+      provider: rawBilling.provider === "polar" || rawBilling.provider === "google_play" || rawBilling.provider === "manual"
+        ? rawBilling.provider
+        : null,
+      price: typeof rawBilling.price === "string" ? rawBilling.price : DEFAULT_SYNC_BILLING.price,
+      validUntil: nullableString(rawBilling.validUntil),
+      cancelAtPeriodEnd: rawBilling.cancelAtPeriodEnd === true,
+    },
   };
 }
 
@@ -137,6 +169,9 @@ export type SyncRequest =
   | { type: "sync:pairWithCode"; payload: string }
   | { type: "sync:setDeviceName"; name: string }
   | { type: "sync:syncNow" }
+  | { type: "sync:subscribe" }
+  | { type: "sync:manageSubscription" }
+  | { type: "sync:refreshEntitlement" }
   | { type: "sync:setPreferences"; preferences: SyncPreferences };
 
 export interface SyncResponse {

@@ -24,6 +24,9 @@ export function AccountPanel() {
     </div>
   );
 
+  if (status.signedIn && status.billing.required && !status.billing.entitled) {
+    return <Paywall status={status} busy={busy} error={error} run={run} />;
+  }
   if (status.unlocked) return <Unlocked status={status} busy={busy} error={error} run={run} />;
   if (status.signedIn) return <Passphrase status={status} busy={busy} error={error} run={run} />;
 
@@ -54,6 +57,31 @@ export function AccountPanel() {
     mode === "signup"
       ? "Make an account so your settings and stats can travel with you."
       : "I keep your settings and time stats in step on every browser and phone, locked with a key only you hold.",
+  );
+}
+
+function Paywall({ status, busy, error, run }: { status: SyncStatus; busy: boolean; error: string | null; run: Run }) {
+  return (
+    <div className="card flex flex-col gap-4 p-6">
+      <div>
+        <p className="font-display text-3xl leading-none">Sync Premium</p>
+        <p className="mt-2 text-sm text-muted">
+          Keep your settings, focus sessions, and time stats in step on every browser and phone. Your synced data stays end to end encrypted.
+        </p>
+      </div>
+      {error && <Banner text={error} />}
+      <p className="text-lg font-semibold text-ink">$25 per year</p>
+      <Btn busy={busy} onClick={() => void run({ type: "sync:subscribe" })}>
+        Subscribe with Polar
+      </Btn>
+      <Btn ghost busy={busy} onClick={() => void run({ type: "sync:refreshEntitlement" })}>
+        I completed checkout
+      </Btn>
+      <Btn ghost busy={busy} onClick={() => void run({ type: "sync:signOut" })}>
+        Sign out
+      </Btn>
+      <p className="text-xs text-muted">Signed in as {status.email}</p>
+    </div>
   );
 }
 
@@ -358,6 +386,13 @@ function Unlocked({ status, busy, error, run }: { status: SyncStatus; busy: bool
       </div>
 
       <div className="border-t border-line pt-4">
+        {status.billing.provider === "polar" && (
+          <div className="mb-2">
+            <Btn ghost busy={busy} onClick={() => void run({ type: "sync:manageSubscription" })}>
+              Manage subscription
+            </Btn>
+          </div>
+        )}
         <Btn ghost busy={busy} onClick={() => void run({ type: "sync:signOut" })}>
           Sign out of this device
         </Btn>

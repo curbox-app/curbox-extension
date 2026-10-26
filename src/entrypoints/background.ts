@@ -64,6 +64,19 @@ async function handleSync(req: SyncRequest): Promise<SyncResponse> {
       case "sync:syncNow":
         await sync.syncNow();
         break;
+      case "sync:subscribe": {
+        const url = await sync.billingUrl("checkout");
+        await browser.tabs.create({ url });
+        break;
+      }
+      case "sync:manageSubscription": {
+        const url = await sync.billingUrl("manage");
+        await browser.tabs.create({ url });
+        break;
+      }
+      case "sync:refreshEntitlement":
+        await sync.refreshEntitlement();
+        break;
       case "sync:setPreferences":
         await sync.setPreferences(req.preferences);
         break;
