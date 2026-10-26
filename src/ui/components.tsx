@@ -89,7 +89,7 @@ function WeeklyBarGraph({
   const max = Math.max(1, ...totals);
   const barArea = 118;
   return (
-    <div className="flex h-[168px] flex-col px-[7.5%]">
+    <div className="flex h-[168px] flex-col px-[12%]">
       <div className="flex flex-1 items-end justify-between">
         {keys.map((key, i) => {
           const active = key === selected;
@@ -274,12 +274,12 @@ export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: b
         <UsageHeader day={selected} ms={total} compact={compact} />
         <div className="mt-6">
           <WeeklyBarGraph usage={usage} keys={keys} selected={selected} onSelect={setSelected} />
-          <div className="mt-1 flex items-center text-accent">
+          <div className="mt-5 flex items-center py-2 text-accent">
             <button
               type="button"
               onClick={() => setWeekOffset((o) => o + 1)}
               aria-label="Previous week"
-              className="grid h-10 w-10 place-items-center"
+              className="grid h-12 w-10 place-items-center"
             >
               <Chevron dir="left" />
             </button>
@@ -289,7 +289,7 @@ export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: b
               onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}
               disabled={weekOffset === 0}
               aria-label="Next week"
-              className="grid h-10 w-10 place-items-center disabled:opacity-25"
+              className="grid h-12 w-10 place-items-center disabled:opacity-25"
             >
               <Chevron dir="right" />
             </button>
