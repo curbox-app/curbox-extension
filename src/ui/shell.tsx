@@ -207,14 +207,6 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         </span>
         <span className="text-faint">›</span>
       </button>
-      <button onClick={() => onOpen("hider")} className="card flex items-center gap-4 p-5 text-left">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary-chip text-2xl text-on-secondary">◌</span>
-        <span className="flex-1">
-          <b className="block text-base text-ink">UI Hider</b>
-          <small className="text-muted">Hide feeds, comments and suggestions</small>
-        </span>
-        <span className="text-faint">›</span>
-      </button>
       <p className="label mt-3">Mindful nudges</p>
       <button onClick={() => onOpen("prompts")} className="card flex items-center gap-4 p-5 text-left">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">❝</span>
@@ -229,6 +221,14 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Grayscale Filter</b>
           <small className="text-muted">Turn chosen sites gray on a schedule</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <button onClick={() => onOpen("hider")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">◌</span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">UI Hider</b>
+          <small className="text-muted">Hide feeds, comments and suggestions</small>
         </span>
         <span className="text-faint">›</span>
       </button>
