@@ -51,6 +51,8 @@ export interface UsageTracker {
   setMachineState(value: MachineState): Promise<void>;
   setTabAudible(value: boolean): Promise<void>;
   persist(): Promise<void>;
+  /** Unpersisted usage, including the span still being counted. Changes nothing. */
+  liveDeltas(): Promise<Array<[DateKey, DayUsage]>>;
   activeTabId(): number | null;
 }
 
@@ -204,6 +206,20 @@ export function createUsageTracker(
     }
   }
 
+  function peek(): Array<[DateKey, DayUsage]> {
+    const deltas = [...pending];
+    if (!active || !counting) return deltas;
+    const now = Date.now();
+    const ms = now - active.since;
+    if (ms <= 0 || ms > SUSPEND_GAP_MS) return deltas;
+    for (const slice of sliceSpanByHour(active.since, now)) {
+      const day: DayUsage = {};
+      addUsage(day, active.domain, active.path, slice.ms, slice.hour);
+      deltas.push([slice.key, day]);
+    }
+    return deltas;
+  }
+
   return {
     startTracking: (tabId, location) =>
       enqueue(() => {
@@ -235,6 +251,7 @@ export function createUsageTracker(
         snapshot();
       }),
     persist: () => enqueue(doPersist),
+    liveDeltas: () => queue.then(peek),
     activeTabId: () => active?.tabId ?? null,
   };
 }
@@ -249,5 +266,6 @@ export const {
   setMachineState,
   setTabAudible,
   persist,
+  liveDeltas,
   activeTabId,
 } = tracker;

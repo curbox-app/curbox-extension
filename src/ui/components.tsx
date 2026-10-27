@@ -4,6 +4,7 @@ import type { DateKey, UsageHistory } from "../lib/types";
 import { DAY_LABELS, dayLabel, msToWidget, todayKey, totalSublabel, weekKeys, weekRangeLabel } from "../lib/time";
 import { dayTotal, domainsForDay, type DomainRow } from "../lib/stats";
 import { randomAscii } from "../lib/ascii";
+import { siteCategory, siteName } from "../lib/site";
 
 export const btnPrimary =
   "inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary transition active:scale-[0.98] disabled:opacity-40";
@@ -123,43 +124,6 @@ function WeeklyBarGraph({
       </div>
     </div>
   );
-}
-
-const SITE_NAMES: Record<string, string> = {
-  "instagram.com": "Instagram",
-  "discord.com": "Discord",
-  "youtube.com": "YouTube",
-  "reddit.com": "Reddit",
-  "x.com": "X",
-  "twitter.com": "Twitter",
-  "tiktok.com": "TikTok",
-  "facebook.com": "Facebook",
-  "netflix.com": "Netflix",
-  "spotify.com": "Spotify",
-  "github.com": "GitHub",
-};
-
-function bareHost(domain: string): string {
-  return domain.replace(/^www\./, "").toLowerCase();
-}
-
-function siteName(domain: string): string {
-  const host = bareHost(domain);
-  return SITE_NAMES[host] ?? host;
-}
-
-function siteCategory(domain: string): string {
-  const host = bareHost(domain);
-  if (/instagram|facebook|twitter|^x\.com|tiktok|snapchat|reddit|discord|threads|linkedin|pinterest|tumblr|whatsapp/.test(host)) {
-    return "Social networking";
-  }
-  if (/youtube|netflix|twitch|vimeo|hulu|disney|primevideo/.test(host)) return "Video";
-  if (/spotify|soundcloud|music\.|pandora/.test(host)) return "Music";
-  if (/mail\.|gmail|outlook|proton/.test(host)) return "Communication";
-  if (/github|gitlab|stackoverflow|notion|figma|docs\.google/.test(host)) return "Productivity";
-  if (/amazon|ebay|etsy/.test(host)) return "Shopping";
-  if (/news|nytimes|bbc\.|cnn\.|theguardian/.test(host)) return "News";
-  return "Website";
 }
 
 function pathLabel(path: string): string {
@@ -306,6 +270,53 @@ export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: b
 }
 
 // Shared form primitives used by the blocker editors.
+
+export function MatcherList({
+  label,
+  matchers,
+  onChange,
+}: {
+  label: string;
+  matchers: string[];
+  onChange: (matchers: string[]) => void;
+}) {
+  const [entry, setEntry] = useState("");
+  const add = () => {
+    const clean = entry.trim().toLowerCase();
+    if (clean && !matchers.includes(clean)) onChange([...matchers, clean]);
+    setEntry("");
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="label">{label}</p>
+      <div className="flex gap-2">
+        <input
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder="youtube.com or youtube.com/shorts"
+          className={`${inputCls} flex-1`}
+        />
+        <button onClick={add} className={btnOutline}>
+          Add
+        </button>
+      </div>
+      <div className="flex flex-col">
+        {matchers.map((m) => (
+          <div key={m} className="flex items-center justify-between border-b border-line/70 py-2">
+            <span className="font-mono text-sm">{m}</span>
+            <button
+              onClick={() => onChange(matchers.filter((x) => x !== m))}
+              className="text-xs text-faint transition-colors hover:text-ink"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (

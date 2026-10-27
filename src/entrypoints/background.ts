@@ -2,11 +2,15 @@ import { defineBackground, browser } from "#imports";
 import { get, watch } from "../lib/storage";
 import { parseLocation, type SiteLocation } from "../lib/url";
 import type { BlockDecision, FocusSession } from "../lib/types";
-import type { ContentMessage } from "../lib/messages";
+import type { ContentMessage, PromptReply } from "../lib/messages";
 import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
 import { clearExitedOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
+import { noteOpen } from "../core/opens";
+import { groupMatches } from "../lib/match";
+import { promptValues } from "../lib/prompt";
+import { mergeUsage } from "../lib/usage-data";
 import {
   persist,
   startTracking,
@@ -15,6 +19,7 @@ import {
   setPageVisible,
   setMachineState,
   setTabAudible,
+  liveDeltas,
 } from "../core/usage";
 import { getSyncEngine } from "../lib/sync/engine";
 import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
@@ -134,7 +139,10 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
   const location = url ? parseLocation(url) : null;
   if (makeActive) await clearExitedOnOpenGrants(location);
   if (!location) {
-    if (makeActive) stopTracking();
+    if (makeActive) {
+      stopTracking();
+      void noteOpen(null);
+    }
     sendToTab(tabId, { type: "evaluate", decision: PASS });
     return;
   }
@@ -145,7 +153,17 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
   if (makeActive && tabId === focusedTabId) {
     if (decision.blocked) void stopTracking();
     else void startTracking(tabId, location);
+    void noteOpen(decision.blocked ? null : location.domain);
   }
+}
+
+async function gentlePrompt(url: string): Promise<PromptReply> {
+  const location = parseLocation(url);
+  const settings = await get("settings");
+  const config = settings.gentlePrompt;
+  if (!location || !config.enabled || !groupMatches(location, config.sites)) return null;
+  const [usage, deltas, opens] = await Promise.all([get("usage"), liveDeltas(), get("opens")]);
+  return { config, values: promptValues(location.domain, mergeUsage(usage, deltas), opens, settings) };
 }
 
 function supportsWindows(): boolean {
@@ -430,6 +448,10 @@ export default defineBackground(() => {
     if (message.type === "endFocus") {
       void endSession();
       return;
+    }
+    if (message.type === "prompt") {
+      void gentlePrompt(message.url).then(sendResponse);
+      return true;
     }
     if (message.type === "proceed") {
       void recordProceed(message.groupId, message.minutes).then(() => {

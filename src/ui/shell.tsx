@@ -6,10 +6,11 @@ import { FocusPanel } from "./focus";
 import { AboutPanel } from "./about";
 import { AccountPanel } from "./account/AccountPanel";
 import { ConsentDialog } from "./ConsentDialog";
+import { GentlePromptPanel } from "./prompts";
 import type { Settings } from "../lib/types";
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "sync" | null;
+type ReducerPage = "website" | "prompts" | "sync" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -126,16 +127,22 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                 >
                   ← {reducerPage === "website" && screenBack ? screenBack.label : "Reducers"}
                 </button>
-                {reducerPage === "website" ? (
+                {reducerPage === "website" && (
                   <GroupManager
                     groups={draft.groups}
                     focusGroups={draft.focusGroups}
                     onChange={(groups) => commit({ ...draft, groups })}
                     onBack={setScreenBack}
                   />
-                ) : (
-                  <AccountPanel />
                 )}
+                {reducerPage === "prompts" && (
+                  <GentlePromptPanel
+                    config={draft.gentlePrompt}
+                    groups={draft.groups}
+                    onChange={(gentlePrompt) => commit({ ...draft, gentlePrompt })}
+                  />
+                )}
+                {reducerPage === "sync" && <AccountPanel />}
               </>
             )}
             {tab === "info" && <AboutPanel />}
@@ -173,6 +180,15 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Website Blocker</b>
           <small className="text-muted">Combine active hours, usage limits, and on-each-open pauses</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <p className="label mt-3">Mindful nudges</p>
+      <button onClick={() => onOpen("prompts")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">❝</span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">Gentle Prompts</b>
+          <small className="text-muted">Small live notes that float over the sites you pick</small>
         </span>
         <span className="text-faint">›</span>
       </button>

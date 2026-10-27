@@ -19,6 +19,12 @@ export type DayUsage = Record<string, DomainUsage>;
 
 export type UsageHistory = Record<DateKey, DayUsage>;
 
+/** Local only. How many times each site was opened per day, for {app_opens_today}. */
+export interface SiteOpens {
+  last: string;
+  days: Record<DateKey, Record<string, number>>;
+}
+
 // Blocking modes mirror the Android App Pause / Keyword group modes.
 export type BlockingMode = "usage" | "time" | "on-open";
 
@@ -117,10 +123,27 @@ export interface FocusLogEntry {
   completed: boolean;
 }
 
+// Gentle Prompts mirror the Android MindfulMessageConfig: a small live note
+// floating over chosen sites. Colors are #rrggbb, opacities 0 to 100 and the
+// position is the prompt's center as a fraction of the viewport.
+export interface GentlePromptConfig {
+  enabled: boolean;
+  sites: string[];
+  message: string;
+  textSize: number;
+  textColor: string;
+  textOpacity: number;
+  bgColor: string;
+  bgOpacity: number;
+  positionX: number;
+  positionY: number;
+}
+
 export interface Settings {
   schemaVersion: 2;
   groups: BlockGroup[];
   focusGroups: FocusGroup[];
+  gentlePrompt: GentlePromptConfig;
 }
 
 export type BlockSource = "group" | "focus";
@@ -156,6 +179,23 @@ export function defaultWarningScreen(): WarningScreen {
     focusGoalEnabled: false,
     focusGoalGroupId: "",
     focusGoalRequiredMinutes: 60,
+  };
+}
+
+export const PROMPT_TEXT_SIZE = { min: 8, max: 28 };
+
+export function defaultGentlePrompt(): GentlePromptConfig {
+  return {
+    enabled: false,
+    sites: [],
+    message: "Is this really important?\nSite usage: {app_usage_today}\nScreen time: {screentime_today}\nSession: {live_session_duration}",
+    textSize: 14,
+    textColor: "#ffffff",
+    textOpacity: 100,
+    bgColor: "#000000",
+    bgOpacity: 37,
+    positionX: 0.5,
+    positionY: 0.05,
   };
 }
 
@@ -198,7 +238,28 @@ export function normalizeSettings(value: unknown): Settings {
   const focusGroups = Array.isArray(raw.focusGroups) ? raw.focusGroups.map(normalizeFocusGroup) : [];
   const sourceGroups = Array.isArray(raw.groups) ? raw.groups : [];
   const groups = sourceGroups.map((group) => normalizeGroup(group as Partial<BlockGroup>, raw.schemaVersion));
-  return { schemaVersion: SETTINGS_SCHEMA_VERSION, groups, focusGroups };
+  return { schemaVersion: SETTINGS_SCHEMA_VERSION, groups, focusGroups, gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt) };
+}
+
+function normalizeGentlePrompt(value: Partial<GentlePromptConfig> | undefined): GentlePromptConfig {
+  const defaults = defaultGentlePrompt();
+  const prompt = value ?? {};
+  const color = (v: unknown, fallback: string) =>
+    typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : fallback;
+  const fraction = (v: unknown, fallback: number) => clamp(finiteNonNegative(v, fallback), 0, 1);
+  const percent = (v: unknown, fallback: number) => clamp(finiteNonNegative(v, fallback), 0, 100);
+  return {
+    enabled: prompt.enabled === true,
+    sites: Array.isArray(prompt.sites) ? prompt.sites.filter((v): v is string => typeof v === "string") : [],
+    message: typeof prompt.message === "string" ? prompt.message : defaults.message,
+    textSize: clamp(finitePositive(prompt.textSize, defaults.textSize), PROMPT_TEXT_SIZE.min, PROMPT_TEXT_SIZE.max),
+    textColor: color(prompt.textColor, defaults.textColor),
+    textOpacity: percent(prompt.textOpacity, defaults.textOpacity),
+    bgColor: color(prompt.bgColor, defaults.bgColor),
+    bgOpacity: percent(prompt.bgOpacity, defaults.bgOpacity),
+    positionX: fraction(prompt.positionX, defaults.positionX),
+    positionY: fraction(prompt.positionY, defaults.positionY),
+  };
 }
 
 function normalizeGroup(group: Partial<BlockGroup>, schemaVersion?: number): BlockGroup {

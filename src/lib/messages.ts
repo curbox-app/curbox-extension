@@ -1,11 +1,15 @@
 import { browser } from "#imports";
-import type { BlockDecision } from "./types";
+import type { PromptValues } from "./prompt";
+import type { BlockDecision, GentlePromptConfig } from "./types";
 
 export type ContentMessage =
   | { type: "visibility"; visible: boolean }
   | { type: "navigated"; url: string }
   | { type: "proceed"; groupId: string; domain: string; minutes?: number }
-  | { type: "endFocus" };
+  | { type: "endFocus" }
+  | { type: "prompt"; url: string };
+
+export type PromptReply = { config: GentlePromptConfig; values: PromptValues } | null;
 
 export type BgMessage = { type: "evaluate"; decision: BlockDecision };
 

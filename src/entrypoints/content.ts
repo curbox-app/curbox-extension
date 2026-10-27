@@ -3,6 +3,7 @@ import { sendToBackground } from "../lib/messages";
 import type { BgMessage } from "../lib/messages";
 import { parseLocation } from "../lib/url";
 import { createOverlay } from "../content/overlay";
+import { createPrompt } from "../content/prompt";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -16,6 +17,7 @@ export default defineContentScript({
     (window as unknown as Record<string, boolean>)[marker] = true;
 
     const overlay = createOverlay();
+    const prompt = createPrompt();
 
     const reportEngagement = () => {
       const engaged = document.visibilityState === "visible" && document.hasFocus();
@@ -28,6 +30,7 @@ export default defineContentScript({
 
     const reportNavigation = () => {
       void sendToBackground({ type: "navigated", url: location.href });
+      prompt.refresh();
     };
     hookHistory(reportNavigation);
     window.addEventListener("popstate", reportNavigation);

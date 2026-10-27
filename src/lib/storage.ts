@@ -1,5 +1,5 @@
 import { browser } from "#imports";
-import type { FocusLogEntry, FocusSession, ProceedRecord, Settings, UsageHistory } from "./types";
+import type { FocusLogEntry, FocusSession, ProceedRecord, Settings, SiteOpens, UsageHistory } from "./types";
 import { normalizeSettings } from "./types";
 
 interface StoreShape {
@@ -10,13 +10,10 @@ interface StoreShape {
   grants: Record<string, number>; // groupId -> granted until (ms)
   proceeds: Record<string, ProceedRecord>; // groupId -> proceed tally
   termsAccepted: boolean;
+  opens: SiteOpens;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
-  schemaVersion: 2,
-  groups: [],
-  focusGroups: [],
-};
+export const DEFAULT_SETTINGS: Settings = normalizeSettings({});
 
 const DEFAULTS: StoreShape = {
   usage: {},
@@ -26,6 +23,7 @@ const DEFAULTS: StoreShape = {
   grants: {},
   proceeds: {},
   termsAccepted: false,
+  opens: { last: "", days: {} },
 };
 
 export async function get<K extends keyof StoreShape>(key: K): Promise<StoreShape[K]> {

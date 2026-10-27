@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluate } from "./blocker";
 import { dateKey } from "../lib/time";
-import { newGroup, type FocusLogEntry, type FocusSession, type Settings, type UsageHistory } from "../lib/types";
+import { defaultGentlePrompt, newGroup, type FocusLogEntry, type FocusSession, type Settings, type UsageHistory } from "../lib/types";
 
 const NOW = new Date(2026, 7, 3, 10, 30).getTime();
 
@@ -10,7 +10,7 @@ function settingsFor(limitMinutes: number, ranges = [{ start: 9 * 60, end: 17 * 
   group.id = "video";
   group.matchers = ["youtube.com"];
   group.schedule.days = group.schedule.days.map(() => ({ active: true, limitMinutes, ranges }));
-  return { schemaVersion: 2, groups: [group], focusGroups: [] };
+  return { schemaVersion: 2, groups: [group], focusGroups: [], gentlePrompt: defaultGentlePrompt() };
 }
 
 function decide(settings: Settings, usage: UsageHistory = {}, now = NOW, focus: FocusSession | null = null, focusLog: FocusLogEntry[] = []) {
