@@ -10,8 +10,7 @@ import {
   type WebsitePack,
   type WordListRef,
 } from "../../lib/word-lists";
-import { btnOutline } from "../components";
-import { EditorSheet } from "./ScheduleEditor";
+import { EditorSheet, btnOutline } from "../components";
 
 const SECTIONS: WebsitePack["section"][] = ["Topics", "Mixed topics", "Ads and trackers"];
 

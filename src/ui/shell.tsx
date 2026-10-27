@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCurbox } from "./useStore";
-import { UsageView, ErrorBoundary } from "./components";
+import { ErrorBoundary } from "./components";
+import { UsageView } from "./usage";
 import { GroupManager, type ScreenBack } from "./blocker";
 import { FocusPanel } from "./focus";
 import { AboutPanel } from "./about";
@@ -105,7 +106,9 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
       <main className={`min-h-0 flex-1 overflow-y-auto pb-4 ${tab === "usage" ? "" : "px-4 pt-8"}`}>
         <ErrorBoundary key={`${tab}:${reducerPage}`}>
           <div className="tab-enter">
-            {tab === "usage" && <UsageView usage={usage} />}
+            {tab === "usage" && (
+              <UsageView usage={usage} prefs={draft} onChangePrefs={(prefs) => commit({ ...draft, ...prefs })} />
+            )}
             {tab === "focus" && (
               <FocusPanel
                 focus={focus}

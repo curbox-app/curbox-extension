@@ -160,6 +160,10 @@ export interface Settings {
   grayscaleGroups: GrayscaleGroup[];
   /** Ids of the UI Hider rules that are switched on. */
   hiddenElements: string[];
+  /** Sites left out of the usage screen, like Android usageTrackerIgnoredApps. */
+  usageIgnoredSites: string[];
+  /** Name of the usage screen's ASCII art. Empty picks one at random, like Android. */
+  usageBackgroundArt: string;
 }
 
 export type BlockSource = "group" | "focus";
@@ -261,8 +265,14 @@ export function normalizeSettings(value: unknown): Settings {
     focusGroups,
     gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt),
     grayscaleGroups: Array.isArray(raw.grayscaleGroups) ? raw.grayscaleGroups.map(normalizeGrayscaleGroup) : [],
-    hiddenElements: Array.isArray(raw.hiddenElements) ? raw.hiddenElements.filter((v): v is string => typeof v === "string") : [],
+    hiddenElements: strings(raw.hiddenElements),
+    usageIgnoredSites: strings(raw.usageIgnoredSites),
+    usageBackgroundArt: typeof raw.usageBackgroundArt === "string" ? raw.usageBackgroundArt : "",
   };
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
 function normalizeGrayscaleGroup(group: Partial<GrayscaleGroup>): GrayscaleGroup {

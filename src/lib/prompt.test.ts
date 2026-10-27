@@ -18,6 +18,8 @@ function settings(): Settings {
     gentlePrompt: { ...defaultGentlePrompt(), sites: ["youtube.com", "instagram.com"] },
     grayscaleGroups: [],
     hiddenElements: [],
+    usageIgnoredSites: [],
+    usageBackgroundArt: "",
   };
 }
 

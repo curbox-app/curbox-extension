@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import type { DaySchedule, TimeRange } from "../../lib/types";
 import { clockToMinutes, minutesToClock } from "../../lib/time";
-import { DayChips, inputCls } from "../components";
+import { DayChips, EditorSheet, inputCls } from "../components";
 import { DAY_NAMES } from "./constants";
 
 type ScheduleMode = "all-day" | "daily" | "custom";
@@ -204,58 +203,6 @@ function UsageLimitSheet({
         )
       )}
     </EditorSheet>
-  );
-}
-
-export function EditorSheet({
-  title,
-  subtitle,
-  nav,
-  onClose,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  nav?: ReactNode;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div className="fixed inset-0 z-40 flex items-end justify-center">
-      <button type="button" aria-label={`Close ${title}`} className="absolute inset-0 bg-ink/30" onClick={onClose} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="relative flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-t-[24px] bg-bg shadow-float"
-      >
-        <div className="flex items-center justify-between px-6 pb-2 pt-5">
-          <div>
-            <p className="font-display text-3xl leading-none">{title}</p>
-            <p className="mt-2 text-sm text-muted">{subtitle}</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-sm font-medium text-primary">
-            Close
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
-        {nav}
-      </div>
-    </div>,
-    document.body,
   );
 }
 

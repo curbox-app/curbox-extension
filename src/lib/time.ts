@@ -26,31 +26,7 @@ export function lastNDays(n: number, end = new Date()): DateKey[] {
   return keys;
 }
 
-export function weekOf(end: Date): DateKey[] {
-  return lastNDays(7, end);
-}
-
-export function weekKeys(offset: number): DateKey[] {
-  const end = new Date();
-  end.setDate(end.getDate() - offset * 7);
-  return lastNDays(7, end);
-}
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-export function weekRangeLabel(keys: DateKey[]): string {
-  const fmt = (key: DateKey) => {
-    const [, m, d] = key.split("-").map(Number);
-    return `${MONTHS[m - 1]} ${d}`;
-  };
-  return `${fmt(keys[0])} to ${fmt(keys[keys.length - 1])}`;
-}
-
-export function totalSublabel(key: DateKey): string {
-  if (key === todayKey()) return "Total today";
-  const [, m, d] = key.split("-").map(Number);
-  return `Total · ${MONTHS[m - 1]} ${d}`;
-}
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 
