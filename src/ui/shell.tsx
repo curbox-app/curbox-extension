@@ -8,10 +8,11 @@ import { AccountPanel } from "./account/AccountPanel";
 import { ConsentDialog } from "./ConsentDialog";
 import { GentlePromptPanel } from "./prompts";
 import { GrayscalePanel } from "./grayscale";
+import { UiHiderPanel } from "./ui-hider";
 import type { Settings } from "../lib/types";
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "prompts" | "grayscale" | "sync" | null;
+type ReducerPage = "website" | "hider" | "prompts" | "grayscale" | "sync" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -150,6 +151,12 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                     onBack={setScreenBack}
                   />
                 )}
+                {reducerPage === "hider" && (
+                  <UiHiderPanel
+                    hidden={draft.hiddenElements}
+                    onChange={(hiddenElements) => commit({ ...draft, hiddenElements })}
+                  />
+                )}
                 {reducerPage === "sync" && <AccountPanel />}
               </>
             )}
@@ -188,6 +195,14 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Website Blocker</b>
           <small className="text-muted">Combine active hours, usage limits, and on-each-open pauses</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <button onClick={() => onOpen("hider")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary-chip text-2xl text-on-secondary">◌</span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">UI Hider</b>
+          <small className="text-muted">Hide feeds, comments and suggestions</small>
         </span>
         <span className="text-faint">›</span>
       </button>

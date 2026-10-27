@@ -155,6 +155,8 @@ export interface Settings {
   focusGroups: FocusGroup[];
   gentlePrompt: GentlePromptConfig;
   grayscaleGroups: GrayscaleGroup[];
+  /** Ids of the UI Hider rules that are switched on. */
+  hiddenElements: string[];
 }
 
 export type BlockSource = "group" | "focus";
@@ -255,6 +257,7 @@ export function normalizeSettings(value: unknown): Settings {
     focusGroups,
     gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt),
     grayscaleGroups: Array.isArray(raw.grayscaleGroups) ? raw.grayscaleGroups.map(normalizeGrayscaleGroup) : [],
+    hiddenElements: Array.isArray(raw.hiddenElements) ? raw.hiddenElements.filter((v): v is string => typeof v === "string") : [],
   };
 }
 

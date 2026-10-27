@@ -17,6 +17,7 @@ function settings(): Settings {
     focusGroups: [],
     gentlePrompt: { ...defaultGentlePrompt(), sites: ["youtube.com", "instagram.com"] },
     grayscaleGroups: [],
+    hiddenElements: [],
   };
 }
 

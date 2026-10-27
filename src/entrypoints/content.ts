@@ -5,6 +5,7 @@ import { parseLocation } from "../lib/url";
 import { createOverlay } from "../content/overlay";
 import { createPrompt } from "../content/prompt";
 import { createGrayscale } from "../content/grayscale";
+import { createUiHider } from "../content/ui-hider";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -20,6 +21,7 @@ export default defineContentScript({
     const overlay = createOverlay();
     const prompt = createPrompt();
     const grayscale = createGrayscale();
+    createUiHider();
 
     const reportEngagement = () => {
       const engaged = document.visibilityState === "visible" && document.hasFocus();
