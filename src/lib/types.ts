@@ -139,11 +139,22 @@ export interface GentlePromptConfig {
   positionY: number;
 }
 
+// Grayscale groups mirror the Android GrayscaleGroup: chosen sites turn gray
+// during their active hours.
+export interface GrayscaleGroup {
+  id: string;
+  name: string;
+  enabled: boolean;
+  sites: string[];
+  schedule: DaySchedule;
+}
+
 export interface Settings {
   schemaVersion: 2;
   groups: BlockGroup[];
   focusGroups: FocusGroup[];
   gentlePrompt: GentlePromptConfig;
+  grayscaleGroups: GrayscaleGroup[];
 }
 
 export type BlockSource = "group" | "focus";
@@ -238,7 +249,32 @@ export function normalizeSettings(value: unknown): Settings {
   const focusGroups = Array.isArray(raw.focusGroups) ? raw.focusGroups.map(normalizeFocusGroup) : [];
   const sourceGroups = Array.isArray(raw.groups) ? raw.groups : [];
   const groups = sourceGroups.map((group) => normalizeGroup(group as Partial<BlockGroup>, raw.schemaVersion));
-  return { schemaVersion: SETTINGS_SCHEMA_VERSION, groups, focusGroups, gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt) };
+  return {
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    groups,
+    focusGroups,
+    gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt),
+    grayscaleGroups: Array.isArray(raw.grayscaleGroups) ? raw.grayscaleGroups.map(normalizeGrayscaleGroup) : [],
+  };
+}
+
+function normalizeGrayscaleGroup(group: Partial<GrayscaleGroup>): GrayscaleGroup {
+  const source = group.schedule;
+  const fallback = defaultSchedule();
+  return {
+    id: typeof group.id === "string" && group.id ? group.id : uid(),
+    name: typeof group.name === "string" ? group.name : "Untitled",
+    enabled: group.enabled !== false,
+    sites: Array.isArray(group.sites) ? group.sites.filter((v): v is string => typeof v === "string") : [],
+    schedule: {
+      scheduleUniform: source?.scheduleUniform ?? true,
+      usageUniform: true,
+      days: fallback.days.map((day, index) => {
+        const value = Array.isArray(source?.days) ? source.days[index] : undefined;
+        return value ? { active: value.active !== false, limitMinutes: 0, ranges: normalizeRanges(value.ranges) } : day;
+      }),
+    },
+  };
 }
 
 function normalizeGentlePrompt(value: Partial<GentlePromptConfig> | undefined): GentlePromptConfig {
@@ -377,6 +413,10 @@ function finitePositive(value: unknown, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+export function newGrayscaleGroup(name: string): GrayscaleGroup {
+  return { id: uid(), name, enabled: true, sites: [], schedule: defaultSchedule() };
 }
 
 export function newFocusGroup(name: string): FocusGroup {

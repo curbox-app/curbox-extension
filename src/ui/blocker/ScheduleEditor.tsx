@@ -8,7 +8,15 @@ import { DAY_NAMES } from "./constants";
 type ScheduleMode = "all-day" | "daily" | "custom";
 type LimitMode = "daily" | "custom";
 
-export function ScheduleEditor({ schedule, onChange }: { schedule: DaySchedule; onChange: (schedule: DaySchedule) => void }) {
+export function ScheduleEditor({
+  schedule,
+  onChange,
+  showLimit = true,
+}: {
+  schedule: DaySchedule;
+  onChange: (schedule: DaySchedule) => void;
+  showLimit?: boolean;
+}) {
   const [sheet, setSheet] = useState<"hours" | "limit" | null>(null);
   const mode = scheduleMode(schedule);
   const limitMode: LimitMode = schedule.usageUniform ? "daily" : "custom";
@@ -65,13 +73,15 @@ export function ScheduleEditor({ schedule, onChange }: { schedule: DaySchedule; 
         />
       )}
 
-      <button type="button" onClick={() => setSheet("limit")} className="card flex items-center gap-4 p-5 text-left">
-        <span className="min-w-0 flex-1">
-          <b className="block text-base text-ink">Usage limit</b>
-          <small className="block truncate text-muted">{limitSummary(schedule)}</small>
-        </span>
-        <span className="text-faint">›</span>
-      </button>
+      {showLimit && (
+        <button type="button" onClick={() => setSheet("limit")} className="card flex items-center gap-4 p-5 text-left">
+          <span className="min-w-0 flex-1">
+            <b className="block text-base text-ink">Usage limit</b>
+            <small className="block truncate text-muted">{limitSummary(schedule)}</small>
+          </span>
+          <span className="text-faint">›</span>
+        </button>
+      )}
       {sheet === "limit" && (
         <UsageLimitSheet
           mode={limitMode}
@@ -293,7 +303,7 @@ function minutesLabel(minutes: number): string {
   return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }
 
-function hoursSummary(schedule: DaySchedule): string {
+export function hoursSummary(schedule: DaySchedule): string {
   const mode = scheduleMode(schedule);
   if (mode === "all-day") return "All day";
   if (mode === "daily") {

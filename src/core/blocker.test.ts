@@ -10,7 +10,7 @@ function settingsFor(limitMinutes: number, ranges = [{ start: 9 * 60, end: 17 * 
   group.id = "video";
   group.matchers = ["youtube.com"];
   group.schedule.days = group.schedule.days.map(() => ({ active: true, limitMinutes, ranges }));
-  return { schemaVersion: 2, groups: [group], focusGroups: [], gentlePrompt: defaultGentlePrompt() };
+  return { schemaVersion: 2, groups: [group], focusGroups: [], gentlePrompt: defaultGentlePrompt(), grayscaleGroups: [] };
 }
 
 function decide(settings: Settings, usage: UsageHistory = {}, now = NOW, focus: FocusSession | null = null, focusLog: FocusLogEntry[] = []) {

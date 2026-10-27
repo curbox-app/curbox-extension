@@ -271,6 +271,54 @@ export function UsageView({ usage, compact }: { usage: UsageHistory; compact?: b
 
 // Shared form primitives used by the blocker editors.
 
+export function GroupList<T extends { id: string; name: string; enabled: boolean }>({
+  groups,
+  empty,
+  describe,
+  onOpen,
+  onChange,
+  onAdd,
+}: {
+  groups: T[];
+  empty: string;
+  describe: (group: T) => string;
+  onOpen: (group: T) => void;
+  onChange: (groups: T[]) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {groups.length === 0 && <p className="py-2 text-sm text-muted">{empty}</p>}
+      {groups.map((group) => (
+        <div key={group.id} className="flex items-center justify-between border-b border-line/70 py-3">
+          <button
+            className="-mx-2 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-state"
+            onClick={() => onOpen(group)}
+          >
+            <p className="text-sm">{group.name}</p>
+            <p className="text-xs text-muted">{describe(group)}</p>
+          </button>
+          <div className="flex items-center gap-3 pl-3">
+            <Toggle
+              on={group.enabled}
+              onChange={(on) => onChange(groups.map((g) => (g.id === group.id ? { ...g, enabled: on } : g)))}
+            />
+            <button
+              onClick={() => onChange(groups.filter((g) => g.id !== group.id))}
+              className="text-xs text-faint transition-colors hover:text-ink"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      ))}
+      <button onClick={onAdd} className={`mt-3 self-start ${btnOutline}`}>
+        + New group
+      </button>
+    </div>
+  );
+}
+
 export function MatcherList({
   label,
   matchers,

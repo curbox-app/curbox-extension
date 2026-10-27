@@ -5,6 +5,7 @@ import type {
   BlockDecision,
   BlockGroup,
   BlockReason,
+  DaySchedule,
   FocusLogEntry,
   FocusSession,
   ProceedRecord,
@@ -48,14 +49,14 @@ function focusBlocks(location: SiteLocation, focus: FocusSession): boolean {
   return focus.mode === "only-these" ? listed : !listed;
 }
 
-function activeWindow(group: BlockGroup, now: number): ActiveWindow | null {
+export function activeWindow(schedule: DaySchedule, now: number): ActiveWindow | null {
   const current = new Date(now);
   const today = current.getDay();
   const minute = current.getHours() * 60 + current.getMinutes();
   const startOfToday = new Date(current.getFullYear(), current.getMonth(), current.getDate()).getTime();
 
   const find = (day: number, previousDay: boolean): ActiveWindow | null => {
-    const config = group.schedule.days[day];
+    const config = schedule.days[day];
     if (!config?.active) return null;
     for (const range of config.ranges) {
       if (!rangeIsActive(minute, range, previousDay)) continue;
@@ -201,7 +202,7 @@ export function evaluate(input: EvalInput): BlockDecision {
 
   for (const group of settings.groups) {
     if (!group.enabled || !groupMatches(location, group.matchers)) continue;
-    const window = activeWindow(group, now);
+    const window = activeWindow(group.schedule, now);
     if (!window) continue;
     const reason = blockReason(group, usage, window, now);
     if (!reason || (grants[group.id] ?? 0) > now) continue;

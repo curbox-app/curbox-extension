@@ -7,10 +7,11 @@ import { AboutPanel } from "./about";
 import { AccountPanel } from "./account/AccountPanel";
 import { ConsentDialog } from "./ConsentDialog";
 import { GentlePromptPanel } from "./prompts";
+import { GrayscalePanel } from "./grayscale";
 import type { Settings } from "../lib/types";
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "prompts" | "sync" | null;
+type ReducerPage = "website" | "prompts" | "grayscale" | "sync" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -118,14 +119,14 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                 <button
                   className="sticky top-0 z-10 -mx-4 mb-4 bg-bg px-4 py-3 text-sm font-medium text-primary"
                   onClick={() => {
-                    if (reducerPage === "website" && screenBack) screenBack.go();
+                    if (screenBack) screenBack.go();
                     else {
                       setScreenBack(null);
                       setReducerPage(null);
                     }
                   }}
                 >
-                  ← {reducerPage === "website" && screenBack ? screenBack.label : "Reducers"}
+                  ← {screenBack ? screenBack.label : "Reducers"}
                 </button>
                 {reducerPage === "website" && (
                   <GroupManager
@@ -140,6 +141,13 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                     config={draft.gentlePrompt}
                     groups={draft.groups}
                     onChange={(gentlePrompt) => commit({ ...draft, gentlePrompt })}
+                  />
+                )}
+                {reducerPage === "grayscale" && (
+                  <GrayscalePanel
+                    groups={draft.grayscaleGroups}
+                    onChange={(grayscaleGroups) => commit({ ...draft, grayscaleGroups })}
+                    onBack={setScreenBack}
                   />
                 )}
                 {reducerPage === "sync" && <AccountPanel />}
@@ -189,6 +197,14 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Gentle Prompts</b>
           <small className="text-muted">Small live notes that float over the sites you pick</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <button onClick={() => onOpen("grayscale")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">◐</span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">Grayscale Filter</b>
+          <small className="text-muted">Turn chosen sites gray on a schedule</small>
         </span>
         <span className="text-faint">›</span>
       </button>

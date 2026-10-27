@@ -4,6 +4,7 @@ import type { BgMessage } from "../lib/messages";
 import { parseLocation } from "../lib/url";
 import { createOverlay } from "../content/overlay";
 import { createPrompt } from "../content/prompt";
+import { createGrayscale } from "../content/grayscale";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -18,6 +19,7 @@ export default defineContentScript({
 
     const overlay = createOverlay();
     const prompt = createPrompt();
+    const grayscale = createGrayscale();
 
     const reportEngagement = () => {
       const engaged = document.visibilityState === "visible" && document.hasFocus();
@@ -31,6 +33,7 @@ export default defineContentScript({
     const reportNavigation = () => {
       void sendToBackground({ type: "navigated", url: location.href });
       prompt.refresh();
+      grayscale.refresh();
     };
     hookHistory(reportNavigation);
     window.addEventListener("popstate", reportNavigation);
