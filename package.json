@@ -11,6 +11,7 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
+    "lint:firefox": "wxt build -b firefox && web-ext lint --source-dir .output/firefox-mv2",
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "wxt prepare"
@@ -30,6 +31,7 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "4.1.10",
+    "web-ext": "^10.8.0",
     "wxt": "^0.20.0"
   },
   "overrides": {

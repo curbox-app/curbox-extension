@@ -179,17 +179,20 @@ export function createOverlay(): Overlay {
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", "A mindful pause from Curbox");
-    root.innerHTML = `
-      <div class="card" tabindex="-1">
-        <p class="message">${escapeHtml(decision.message)}</p>
-        <div class="body"></div>
-      </div>`;
+    const card = document.createElement("div");
+    card.className = "card";
+    card.tabIndex = -1;
+    const message = document.createElement("p");
+    message.className = "message";
+    message.textContent = decision.message;
+    const body = document.createElement("div");
+    body.className = "body";
+    card.append(message, body);
+    root.appendChild(card);
     shadow.appendChild(root);
     requestAnimationFrame(() => root.classList.add("visible"));
-    root.querySelector<HTMLElement>(".card")!.focus();
+    card.focus();
     trapFocus(root, shadow, handlers.onLeave);
-
-    const body = root.querySelector<HTMLDivElement>(".body")!;
 
     if (decision.source === "focus") {
       renderFocus(body, decision, handlers);
@@ -254,7 +257,7 @@ export function createOverlay(): Overlay {
       warning.delaySeconds,
       (left) => (wait.textContent = `Please wait ${left} seconds before pressing proceed`),
       () => {
-        slot.innerHTML = "";
+        slot.replaceChildren();
         renderChallenge(slot, proceedButton, decision, warning, proceed);
       },
     );
@@ -458,11 +461,5 @@ function trapFocus(root: HTMLElement, shadow: ShadowRoot, onEscape: () => void):
       e.preventDefault();
       first.focus();
     }
-  });
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!;
   });
 }

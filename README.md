@@ -152,7 +152,11 @@ npm run dev            # Chromium with hot reload
 npm run dev:firefox    # Firefox with hot reload
 npm run compile        # type check
 npm test               # unit tests (vitest)
+npm run lint:firefox   # build for Firefox and run Mozilla's add-on linter
+npm run zip:firefox    # the add-on and sources zips to upload to AMO
 ```
+
+Shipping a Firefox build? Follow [docs/firefox-release.md](docs/firefox-release.md).
 
 Built with [WXT](https://wxt.dev), [React](https://react.dev), [TypeScript](https://www.typescriptlang.org) and [Tailwind CSS](https://tailwindcss.com).
 

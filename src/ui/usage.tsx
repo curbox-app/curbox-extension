@@ -57,8 +57,12 @@ function AsciiWatermark({ ascii, compact }: { ascii: string; compact?: boolean }
   );
 }
 
+// Chromium serves cached site icons to extensions; Firefox has no such API,
+// so it shows the first letter instead of requesting an icon that cannot load.
+const HAS_FAVICON_API = import.meta.env.BROWSER !== "firefox";
+
 function Favicon({ domain }: { domain: string }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState(!HAS_FAVICON_API);
   if (failed) {
     return (
       <span className="font-display grid h-10 w-10 shrink-0 place-items-center rounded-full bg-tertiary-chip text-lg leading-none text-ink">
