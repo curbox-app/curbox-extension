@@ -7,11 +7,14 @@ export interface HiderRule {
   label: string;
   description: string;
   css: string;
+  /** Runs twice a second while the rule is on, for what CSS alone cannot do. */
+  run?: () => void;
 }
 
-// The content script marks the YouTube home page on <html>, because the mobile
-// site has no home specific element to select on.
-export const HOME_ATTR = "data-curbox-home";
+// The content script mirrors the current path onto <html>, so rules can target
+// one page on sites that navigate without reloading.
+export const PATH_ATTR = "data-curbox-path";
+const onPath = (path: string) => `html[${PATH_ATTR}="${path}"]`;
 
 const hide = (selectors: string[]) => `${selectors.join(",\n")} { display: none !important; }`;
 
@@ -25,6 +28,12 @@ const note = (selectors: string[], text: string) => `${selectors.join(",\n")} {
 }`;
 
 const YOUTUBE = ["youtube.com"];
+const X = ["x.com", "twitter.com"];
+
+// X home tabs by position, so it works in every language: For you, Following,
+// then any pinned lists.
+const X_HOME_TABS = '[data-testid="primaryColumn"] [role="tablist"]';
+const X_FOR_YOU = `${X_HOME_TABS} [role="presentation"]:first-child`;
 
 export const HIDER_RULES: HiderRule[] = [
   {
@@ -36,12 +45,12 @@ export const HIDER_RULES: HiderRule[] = [
     css: [
       hide([
         'ytd-browse[page-subtype="home"] ytd-rich-grid-renderer',
-        `html[${HOME_ATTR}] ytm-browse ytm-rich-grid-renderer`,
-        `html[${HOME_ATTR}] ytm-browse ytm-feed-filter-chip-bar-renderer`,
-        `html[${HOME_ATTR}] ytm-browse ytm-section-list-renderer`,
+        `${onPath("/")} ytm-browse ytm-rich-grid-renderer`,
+        `${onPath("/")} ytm-browse ytm-feed-filter-chip-bar-renderer`,
+        `${onPath("/")} ytm-browse ytm-section-list-renderer`,
       ]),
       note(
-        ['ytd-browse[page-subtype="home"]::before', `html[${HOME_ATTR}] ytm-browse::before`],
+        ['ytd-browse[page-subtype="home"]::before', `${onPath("/")} ytm-browse::before`],
         "I tucked your feed away. Search for what you came for.",
       ),
     ].join("\n"),
@@ -112,6 +121,23 @@ export const HIDER_RULES: HiderRule[] = [
       "ytd-notification-topbar-button-renderer #notification-count",
       "ytm-notification-topbar-button-renderer .notification-count",
     ]),
+  },
+  {
+    id: "x-for-you",
+    site: "X",
+    hosts: X,
+    label: "For you tab",
+    description: "Hide the For you feed and open Following instead.",
+    css: [
+      hide([`${onPath("/home")} ${X_FOR_YOU}`]),
+      // Keep the feed out of sight until I have switched to Following.
+      `${onPath("/home")} [data-testid="primaryColumn"]:has(${X_FOR_YOU} [role="tab"][aria-selected="true"]) section[role="region"] { visibility: hidden !important; }`,
+    ].join("\n"),
+    run: () => {
+      if (location.pathname !== "/home") return;
+      const tabs = document.querySelectorAll<HTMLElement>(`${X_HOME_TABS} [role="tab"]`);
+      if (tabs.length > 1 && tabs[0].getAttribute("aria-selected") === "true") tabs[1].click();
+    },
   },
 ];
 
