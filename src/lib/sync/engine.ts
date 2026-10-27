@@ -632,7 +632,7 @@ export class SyncEngine {
   // Focus mode (cross platform) -----------------------------------------
 
   private focusJson(session: FocusSession | null): string {
-    const active = session !== null && session.endsAt > Date.now();
+    const active = session !== null && session.endsAt > Date.now() && session.pomodoro?.phase !== "break";
     return JSON.stringify({
       active,
       groupId: active ? session!.groupId : "",

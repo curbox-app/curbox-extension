@@ -102,16 +102,39 @@ export interface FocusGroup {
   autoTurnOnDnd?: boolean;
 }
 
+export type PomodoroPhase = "focus" | "break";
+
+// Mirrors Android PomodoroState: the chosen focus time repeats for a number of
+// rounds with a break between each.
+export interface PomodoroState {
+  phase: PomodoroPhase;
+  focusMinutes: number;
+  breakMinutes: number;
+  totalRounds: number;
+  completedRounds: number;
+}
+
+export const POMODORO = {
+  defaultBreakMinutes: 5,
+  defaultRounds: 4,
+  maxFocusMinutes: 1440,
+  maxBreakMinutes: 120,
+  minRounds: 2,
+  maxRounds: 12,
+};
+
 export interface FocusSession {
   groupId: string;
   name: string;
   domains: string[];
   packages: string[];
   mode: FocusMode;
+  /** Start and end of the current phase when a pomodoro is running. */
   startedAt: number;
   endsAt: number;
   exitable: boolean;
   plannedMs: number;
+  pomodoro?: PomodoroState;
 }
 
 export interface FocusLogEntry {

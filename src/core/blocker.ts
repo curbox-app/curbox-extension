@@ -2,6 +2,7 @@ import type { SiteLocation } from "../lib/url";
 import { groupMatches } from "../lib/match";
 import { targetMatches, type CompiledLists } from "../lib/word-lists";
 import { dateKey } from "../lib/time";
+import { isOnBreak } from "./pomodoro";
 import type {
   BlockDecision,
   BlockGroup,
@@ -47,6 +48,7 @@ export const PASS: BlockDecision = {
 };
 
 function focusBlocks(location: SiteLocation, focus: FocusSession): boolean {
+  if (isOnBreak(focus.pomodoro)) return false;
   const listed = groupMatches(location, focus.domains);
   return focus.mode === "only-these" ? listed : !listed;
 }
@@ -170,7 +172,7 @@ function focusGoalRemaining(warning: WarningScreen, log: FocusLogEntry[], focus:
       return [Math.max(dayStart, start), Math.min(dayEnd, end)] as [number, number];
     })
     .filter(([start, end]) => end > start);
-  if (focus?.groupId === warning.focusGoalGroupId) {
+  if (focus?.groupId === warning.focusGoalGroupId && !isOnBreak(focus.pomodoro)) {
     ranges.push([Math.max(dayStart, focus.startedAt), Math.min(dayEnd, now, focus.endsAt)]);
   }
   ranges.sort((a, b) => a[0] - b[0]);
