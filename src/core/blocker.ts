@@ -45,6 +45,9 @@ export const PASS: BlockDecision = {
   canProceed: false,
   focusExitable: false,
   focusGoalRemainingMs: 0,
+  focusGoalGroupName: "",
+  proceedsLeft: -1,
+  proceedRetryMinutes: 0,
 };
 
 function focusBlocks(location: SiteLocation, focus: FocusSession): boolean {
@@ -147,16 +150,22 @@ function isWholeLocalDay(window: ActiveWindow, key: string): boolean {
   return window.start <= start && window.end >= end;
 }
 
-function canProceed(warning: WarningScreen, record: ProceedRecord | undefined, now: number): boolean {
-  if (warning.challenge === "never") return false;
-  if (warning.proceedLimit <= 0) return true;
-  if (!record) return true;
-  if (record.timestamps) {
-    const windowMs = warning.proceedWindowMinutes * 60_000;
-    return record.timestamps.filter((timestamp) => now - timestamp < windowMs).length < warning.proceedLimit;
-  }
-  const fresh = now - record.windowStart < warning.proceedWindowMinutes * 60_000;
-  return !fresh || record.count < warning.proceedLimit;
+interface ProceedStatus {
+  allowed: boolean;
+  left: number;
+  retryMinutes: number;
+}
+
+function proceedStatus(warning: WarningScreen, record: ProceedRecord | undefined, now: number): ProceedStatus {
+  if (warning.challenge === "never") return { allowed: false, left: -1, retryMinutes: 0 };
+  if (warning.proceedLimit <= 0) return { allowed: true, left: -1, retryMinutes: 0 };
+  const windowMs = warning.proceedWindowMinutes * 60_000;
+  // Older records kept only a count and the window start.
+  const stamps = record?.timestamps ?? (record && now - record.windowStart < windowMs ? Array(Math.max(0, record.count)).fill(record.windowStart) : []);
+  const recent = stamps.filter((timestamp) => now - timestamp < windowMs);
+  const left = Math.max(0, warning.proceedLimit - recent.length);
+  const retryMinutes = left > 0 ? 0 : Math.max(1, Math.ceil((Math.min(...recent) + windowMs - now) / 60_000));
+  return { allowed: left > 0, left, retryMinutes };
 }
 
 function focusGoalRemaining(warning: WarningScreen, log: FocusLogEntry[], focus: FocusSession | null, now: number): number {
@@ -202,16 +211,14 @@ export function evaluate(input: EvalInput): BlockDecision {
 
   if (focus && focusBlocks(location, focus)) {
     return {
+      ...PASS,
       blocked: true,
       source: "focus",
       groupId: focus.groupId,
       groupName: focus.name,
       reason: "focus",
       message: `I'm holding your focus right now. ${focus.name} stays paused until you're done.`,
-      warning: null,
-      canProceed: false,
       focusExitable: focus.exitable,
-      focusGoalRemainingMs: 0,
     };
   }
 
@@ -222,6 +229,8 @@ export function evaluate(input: EvalInput): BlockDecision {
     const reason = blockReason(group, usage, window, now, lists);
     if (!reason || (grants[group.id] ?? 0) > now) continue;
     const goalRemaining = focusGoalRemaining(group.warning, focusLog, focus, now);
+    const status = proceedStatus(group.warning, proceeds[group.id], now);
+    const goalGroup = settings.focusGroups.find((g) => g.id === group.warning.focusGoalGroupId);
     return {
       blocked: true,
       source: "group",
@@ -230,9 +239,12 @@ export function evaluate(input: EvalInput): BlockDecision {
       reason,
       message: defaultMessage(group, reason),
       warning: group.warning,
-      canProceed: goalRemaining === 0 && canProceed(group.warning, proceeds[group.id], now),
+      canProceed: goalRemaining === 0 && status.allowed,
       focusExitable: false,
       focusGoalRemainingMs: goalRemaining,
+      focusGoalGroupName: goalGroup?.name ?? "",
+      proceedsLeft: status.left,
+      proceedRetryMinutes: status.retryMinutes,
     };
   }
 

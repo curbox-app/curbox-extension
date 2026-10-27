@@ -125,3 +125,39 @@ describe("imported word lists", () => {
     expect(evaluate({ ...base, location, lists: new Map([["pack", compileList("youtube.com")]]) }).blocked).toBe(true);
   });
 });
+
+describe("warning screen details", () => {
+  const withProceeds = (settings: Settings, timestamps: number[]) =>
+    evaluate({
+      location: { domain: "youtube.com", path: "/watch" },
+      settings,
+      focus: null,
+      usage: {},
+      focusLog: [],
+      now: NOW,
+      grants: {},
+      proceeds: { video: { count: timestamps.length, windowStart: timestamps[0] ?? NOW, timestamps } },
+    });
+
+  it("reports opens left and when the proceed limit resets", () => {
+    const settings = settingsFor(0);
+    settings.groups[0].warning = { ...settings.groups[0].warning, proceedLimit: 2, proceedWindowMinutes: 60 };
+    expect(withProceeds(settings, [])).toMatchObject({ canProceed: true, proceedsLeft: 2, proceedRetryMinutes: 0 });
+    expect(withProceeds(settings, [NOW - 10 * 60_000])).toMatchObject({ canProceed: true, proceedsLeft: 1 });
+    expect(withProceeds(settings, [NOW - 50 * 60_000, NOW - 5 * 60_000])).toMatchObject({ canProceed: false, proceedsLeft: 0, proceedRetryMinutes: 10 });
+  });
+
+  it("unlimited proceeds and never unlock report no count", () => {
+    const settings = settingsFor(0);
+    expect(withProceeds(settings, [])).toMatchObject({ canProceed: true, proceedsLeft: -1 });
+    settings.groups[0].warning = { ...settings.groups[0].warning, challenge: "never" };
+    expect(withProceeds(settings, [])).toMatchObject({ canProceed: false, proceedsLeft: -1, proceedRetryMinutes: 0 });
+  });
+
+  it("names the focus group a goal needs", () => {
+    const settings = settingsFor(0);
+    settings.focusGroups = [{ id: "deep", name: "Deep work", domains: [], mode: "only-these", exitable: true }];
+    settings.groups[0].warning = { ...settings.groups[0].warning, focusGoalEnabled: true, focusGoalGroupId: "deep", focusGoalRequiredMinutes: 30 };
+    expect(decide(settings)).toMatchObject({ canProceed: false, focusGoalGroupName: "Deep work", focusGoalRemainingMs: 30 * 60_000 });
+  });
+});

@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { Component, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { DAY_LABELS } from "../lib/time";
 
@@ -9,8 +9,6 @@ export const btnOutline =
 export const btnGhost = "inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-muted transition hover:text-ink";
 export const inputCls =
   "w-full rounded-2xl bg-card px-4 py-3 text-sm text-ink outline-none placeholder:text-faint focus:ring-2 focus:ring-[var(--ring)]";
-export const selectCls =
-  "w-full rounded-2xl bg-card px-4 py-3 text-sm text-ink outline-none focus:ring-2 focus:ring-[var(--ring)]";
 
 // Shared form primitives used by the blocker editors.
 
@@ -172,6 +170,208 @@ export function MatcherList({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+export interface DropdownOption<T extends string> {
+  value: T;
+  label: string;
+  description?: string;
+  recommended?: boolean;
+}
+
+// The app's own dropdown instead of a native select, so rows can carry a
+// description and a Recommended badge like Android, and look the same on every
+// browser. The menu lives in a portal so scrolling sheets never clip it.
+export function Dropdown<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+  placeholder = "Select",
+  compact,
+  ariaLabel,
+}: {
+  value: T;
+  options: DropdownOption<T>[];
+  onChange: (value: T) => void;
+  label?: string;
+  placeholder?: string;
+  compact?: boolean;
+  ariaLabel?: string;
+}) {
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLUListElement>(null);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [place, setPlace] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
+  const selected = options.find((option) => option.value === value);
+
+  const show = () => {
+    setActive(Math.max(0, options.findIndex((option) => option.value === value)));
+    setOpen(true);
+  };
+  const close = (refocus = true) => {
+    setOpen(false);
+    if (refocus) trigger.current?.focus();
+  };
+  const pick = (index: number) => {
+    const option = options[index];
+    if (option) onChange(option.value);
+    close();
+  };
+
+  // Open under the field, or above it when the screen has more room there.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const rect = trigger.current?.getBoundingClientRect();
+      if (!rect) return;
+      const gap = 6;
+      const below = window.innerHeight - rect.bottom - gap - 8;
+      const above = rect.top - gap - 8;
+      const width = Math.min(window.innerWidth - 16, Math.max(rect.width, compact ? 180 : 0));
+      const left = Math.min(Math.max(8, compact ? rect.right - width : rect.left), window.innerWidth - width - 8);
+      const up = below < 240 && above > below;
+      setPlace(
+        up
+          ? { left, width, bottom: window.innerHeight - rect.top + gap, maxHeight: Math.min(360, above) }
+          : { left, width, top: rect.bottom + gap, maxHeight: Math.min(360, below) },
+      );
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [open, compact]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menu.current?.contains(target) && !trigger.current?.contains(target)) close(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) menu.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    const last = options.length - 1;
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => (open ? setActive((i) => Math.min(last, i + 1)) : show()),
+      ArrowUp: () => (open ? setActive((i) => Math.max(0, i - 1)) : show()),
+      Home: () => open && setActive(0),
+      End: () => open && setActive(last),
+      Enter: () => (open ? pick(active) : show()),
+      " ": () => (open ? pick(active) : show()),
+      Escape: () => open && close(),
+      Tab: () => open && close(false),
+    };
+    const run = keys[event.key];
+    if (!run) return;
+    if (event.key !== "Tab") event.preventDefault();
+    // Escape closes only the menu, not a sheet behind it.
+    if (event.key === "Escape" && open) event.stopPropagation();
+    run();
+  };
+
+  const listId = `${id}-list`;
+  const optionId = (index: number) => `${id}-option-${index}`;
+
+  return (
+    <div className={compact ? "inline-flex" : "flex flex-col gap-1.5"}>
+      {label && (
+        <span id={`${id}-label`} className="label">
+          {label}
+        </span>
+      )}
+      <button
+        ref={trigger}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-labelledby={label ? `${id}-label ${id}-value` : undefined}
+        aria-label={label ? undefined : ariaLabel}
+        aria-activedescendant={open ? optionId(active) : undefined}
+        onClick={() => (open ? close() : show())}
+        onKeyDown={onKeyDown}
+        className={
+          compact
+            ? "inline-flex items-center gap-1.5 rounded-xl px-2 py-1 text-xs text-muted transition-colors hover:bg-state hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            : "flex w-full items-center gap-3 rounded-2xl bg-card px-4 py-3 text-left text-sm text-ink transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+        }
+      >
+        <span id={`${id}-value`} className={`min-w-0 flex-1 truncate ${selected ? "" : "text-faint"}`}>
+          {selected?.label ?? placeholder}
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          width={compact ? 12 : 16}
+          height={compact ? 12 : 16}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={`shrink-0 text-faint transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open &&
+        place &&
+        createPortal(
+          <ul
+            ref={menu}
+            id={listId}
+            role="listbox"
+            aria-label={label ?? ariaLabel}
+            style={{ position: "fixed", left: place.left, width: place.width, top: place.top, bottom: place.bottom, maxHeight: place.maxHeight }}
+            className="rise z-50 overflow-y-auto overscroll-contain rounded-2xl bg-card p-1.5 shadow-float"
+          >
+            {options.map((option, index) => {
+              const isSelected = option.value === value;
+              return (
+                <li
+                  key={option.value}
+                  id={optionId(index)}
+                  data-index={index}
+                  role="option"
+                  aria-selected={isSelected}
+                  onPointerEnter={() => setActive(index)}
+                  onClick={() => pick(index)}
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2.5 transition-colors ${index === active ? "bg-state" : ""}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={`text-sm ${isSelected ? "font-medium text-ink" : "text-ink"}`}>{option.label}</span>
+                      {option.recommended && (
+                        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-primary">Recommended</span>
+                      )}
+                    </span>
+                    {option.description && <span className="mt-0.5 block text-xs leading-snug text-muted">{option.description}</span>}
+                  </span>
+                  <span className={`mt-0.5 shrink-0 text-sm text-primary ${isSelected ? "" : "invisible"}`} aria-hidden="true">
+                    ✓
+                  </span>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }

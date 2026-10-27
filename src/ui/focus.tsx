@@ -6,7 +6,7 @@ import { dateKey, dayLabel, lastNDays, msToHuman } from "../lib/time";
 import { startSession } from "../core/focus";
 import { currentRound } from "../core/pomodoro";
 import { sendToBackground } from "../lib/messages";
-import { EditorSheet, Segmented, SheetActions, Toggle, btnOutline, btnPrimary, inputCls, selectCls } from "./components";
+import { Dropdown, EditorSheet, Segmented, SheetActions, Toggle, btnOutline, btnPrimary, inputCls } from "./components";
 import { useDraft } from "./useDraft";
 
 const MODE_OPTIONS: { value: FocusMode; label: string }[] = [
@@ -329,7 +329,7 @@ function MinutesField({ value, onChange }: { value: number; onChange: (minutes: 
 
 function describeGroup(group: FocusGroup): string {
   const count = group.domains.length;
-  return `${group.name} (${count} website${count === 1 ? "" : "s"} ${group.mode === "only-these" ? "included" : "excluded"})`;
+  return `${count} website${count === 1 ? "" : "s"} ${group.mode === "only-these" ? "included" : "excluded"}`;
 }
 
 function phaseLabel(focus: FocusSession): string {
@@ -518,16 +518,15 @@ function FocusSetupSheet({
       }
     >
       <div className="flex flex-col gap-5">
-        <label className="flex flex-col gap-1.5">
-          <span className="label">Focus Group</span>
-          <select value={selected?.id ?? ""} onChange={(e) => onPrefs({ ...prefs, groupId: e.target.value })} className={selectCls}>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {describeGroup(g)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex flex-col gap-1.5">
+          <Dropdown
+            label="Focus Group"
+            value={selected?.id ?? ""}
+            options={groups.map((g) => ({ value: g.id, label: g.name, description: describeGroup(g) }))}
+            onChange={(groupId) => onPrefs({ ...prefs, groupId })}
+          />
+          {selected && <span className="text-xs text-muted">{describeGroup(selected)}</span>}
+        </div>
 
         <div className="flex flex-col gap-2">
           <label className="flex items-center justify-between text-base text-ink">
@@ -684,18 +683,13 @@ function FocusStats({ log, groups }: { log: FocusLogEntry[]; groups: FocusGroup[
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <select
+        <Dropdown
+          compact
+          ariaLabel="Show stats for"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="bg-transparent text-xs text-muted py-1 border-b border-line transition-colors focus:outline-none focus:border-ink"
-        >
-          <option value="all">All groups</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
+          options={[{ value: "all", label: "All groups" }, ...groups.map((g) => ({ value: g.id, label: g.name }))]}
+          onChange={setFilter}
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-2">

@@ -203,6 +203,11 @@ export interface BlockDecision {
   canProceed: boolean;
   focusExitable: boolean;
   focusGoalRemainingMs: number;
+  focusGoalGroupName: string;
+  /** Opens left in the current window, or -1 when unlimited. */
+  proceedsLeft: number;
+  /** Minutes until the proceed limit lets me through again, 0 when it does now. */
+  proceedRetryMinutes: number;
 }
 
 export function defaultWarningScreen(): WarningScreen {

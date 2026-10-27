@@ -30,8 +30,8 @@ export function GroupEditor({
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="font-display text-5xl text-ink">Warning screen</h1>
-          <p className="mt-1 text-sm text-muted">This is what I show when you try to get past this block.</p>
+          <h1 className="font-display text-5xl text-ink">Warning Screen Configuration</h1>
+          <p className="mt-1 text-sm text-muted">Set what happens when your limit is met.</p>
         </div>
         <WarningEditor
           warning={draft.warning}
@@ -78,7 +78,7 @@ export function GroupEditor({
         className="card flex items-center gap-4 p-5 text-left"
       >
         <span className="min-w-0 flex-1">
-          <b className="block text-base text-ink">Warning screen</b>
+          <b className="block text-base text-ink">Configure Warning Screen</b>
           <small className="block truncate text-muted">{warningSummary(draft.warning, draft.onEachOpen)}</small>
         </span>
         <span className="text-faint">›</span>

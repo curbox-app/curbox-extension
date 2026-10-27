@@ -1,6 +1,5 @@
-import type { BlockDecision } from "../lib/types";
+import type { BlockDecision, WarningScreen } from "../lib/types";
 import { AdaptiveMathChallenge } from "../core/adaptive-math";
-import { msToHuman } from "../lib/time";
 import { lockScroll } from "./dom";
 
 const STYLE = `
@@ -20,6 +19,7 @@ const STYLE = `
   transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .curbox-root.visible { opacity: 1; }
+.card:focus { outline: none; }
 .card {
   margin: auto;
   width: min(460px, 86vw);
@@ -72,14 +72,19 @@ button {
   min-width: 220px;
 }
 .primary:disabled { opacity: 0.4; cursor: default; }
+.actions { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 6px; }
+.secondary { border: none; background: transparent; color: inherit; opacity: 0.7; }
+.secondary:hover { opacity: 1; }
+.error { color: #ffb4ab; opacity: 1; }
+.minutes { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; }
+.minutes input { width: 96px; text-align: center; }
 
 `;
 
-function makePrimary(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
+function makeButton(label: string, onClick: () => void, className = "primary"): HTMLButtonElement {
   const button = document.createElement("button");
-  button.className = "primary";
+  button.className = className;
   button.textContent = label;
-  button.disabled = disabled;
   button.onclick = onClick;
   return button;
 }
@@ -190,34 +195,13 @@ export function createOverlay(): Overlay {
       renderFocus(body, decision, handlers);
       return;
     }
-
-    const warning = decision.warning;
-    const proceed = (minutes?: number) => {
-      handlers.onProceed(minutes);
-      hide();
-    };
-
-    if (warning && warning.delaySeconds > 0 && decision.canProceed) {
-      const wait = document.createElement("p");
-      wait.className = "note";
-      body.appendChild(wait);
-      countdown(
-        warning.delaySeconds,
-        (left) => (wait.textContent = `Hold on a moment… ${left}s`),
-        () => {
-          body.innerHTML = "";
-          renderChallenge(body, decision, proceed);
-        },
-      );
-    } else {
-      renderChallenge(body, decision, proceed);
-    }
+    renderWarning(body, decision, handlers);
   }
 
   function renderFocus(body: HTMLDivElement, decision: BlockDecision, handlers: OverlayHandlers): void {
     if (decision.focusExitable) {
       body.appendChild(
-        makePrimary("End focus session", () => {
+        makeButton("End focus session", () => {
           handlers.onEndFocus();
           hide();
         }),
@@ -227,79 +211,128 @@ export function createOverlay(): Overlay {
     }
   }
 
-  function renderChallenge(body: HTMLDivElement, decision: BlockDecision, proceed: (minutes?: number) => void): void {
+  // Follows Android WarningActivity: opens left, a wait before the challenge,
+  // then Proceed and Cancel. When there is no way through, only Okay remains.
+  function renderWarning(body: HTMLDivElement, decision: BlockDecision, handlers: OverlayHandlers): void {
     const warning = decision.warning;
+    const actions = document.createElement("div");
+    actions.className = "actions";
 
-    if (!decision.canProceed) {
-      body.appendChild(
-        makeNote(
-          decision.focusGoalRemainingMs > 0
-            ? `Finish ${msToHuman(decision.focusGoalRemainingMs)} more focus time in the selected group today to unlock.`
-            : warning?.challenge === "never"
-            ? "This one stays closed for now."
-            : "You've used all your passes for now. Come back later.",
-        ),
-      );
+    if (!decision.canProceed || !warning) {
+      if (decision.focusGoalRemainingMs > 0) {
+        const minutes = Math.ceil(decision.focusGoalRemainingMs / 60_000);
+        body.appendChild(makeNote(`Focus goal not met. ${minutes} minutes remaining for ${decision.focusGoalGroupName || "the selected focus group"}.`));
+      } else if (decision.proceedRetryMinutes > 0 && warning) {
+        body.appendChild(
+          makeNote(
+            `Proceed limit of ${warning.proceedLimit} per ${warning.proceedWindowMinutes} minutes has been reached. Try again in ${decision.proceedRetryMinutes} minutes.`,
+          ),
+        );
+      }
+      actions.appendChild(makeButton("Okay", handlers.onLeave));
+      body.appendChild(actions);
       return;
     }
 
-    if (warning?.challenge === "effort" && warning.effortType === "typing") {
+    if (decision.proceedsLeft >= 0) {
+      body.appendChild(makeNote(`You have ${decision.proceedsLeft} of ${warning.proceedLimit} opens left`));
+    }
+    const slot = document.createElement("div");
+    slot.className = "body";
+    const proceedButton = makeButton("Proceed", () => {});
+    proceedButton.disabled = true;
+    actions.append(proceedButton, makeButton("Cancel", handlers.onLeave, "secondary"));
+    body.append(slot, actions);
+
+    const proceed = (minutes?: number) => {
+      handlers.onProceed(minutes);
+      hide();
+    };
+    const wait = makeNote("");
+    slot.appendChild(wait);
+    countdown(
+      warning.delaySeconds,
+      (left) => (wait.textContent = `Please wait ${left} seconds before pressing proceed`),
+      () => {
+        slot.innerHTML = "";
+        renderChallenge(slot, proceedButton, decision, warning, proceed);
+      },
+    );
+  }
+
+  function renderChallenge(
+    slot: HTMLDivElement,
+    button: HTMLButtonElement,
+    decision: BlockDecision,
+    warning: WarningScreen,
+    proceed: (minutes?: number) => void,
+  ): void {
+    const ready = (on: boolean) => (button.disabled = !on);
+
+    if (warning.challenge === "effort" && warning.effortType === "typing") {
       const sentence = document.createElement("p");
       sentence.className = "sentence";
-      sentence.textContent = warning.sentence;
-      const input = makeInput("input", "Type it here");
+      sentence.textContent = `"${warning.sentence}"`;
+      const input = makeInput("input", "Type the exact sentence above");
       // Match Android's typing challenge: the sentence must be entered, not
       // pasted or dragged in from the target text.
       input.addEventListener("paste", (event) => event.preventDefault());
       input.addEventListener("drop", (event) => event.preventDefault());
-      const button = makePrimary("Continue", () => !button.disabled && proceed(), true);
-      const check = () => (button.disabled = normalizeLines(input.value) !== normalizeLines(warning.sentence));
+      const check = () => ready(normalizeLines(input.value) === normalizeLines(warning.sentence));
       input.oninput = check;
-      body.append(sentence, input, button);
+      button.onclick = () => !button.disabled && proceed();
+      slot.append(sentence, input);
       check();
       input.focus();
       return;
     }
 
-    if (warning?.challenge === "effort" && warning.effortType === "intent") {
-      const input = makeInput("textarea", "Why do you want to continue?");
+    if (warning.challenge === "effort" && warning.effortType === "intent") {
+      const input = makeInput("textarea", "Why do you need to use this site?");
       input.rows = 3;
       const minimum = Math.max(1, warning.minIntentLength);
       const note = makeNote("");
-      const button = makePrimary("Continue", () => !button.disabled && proceed(), true);
       const check = () => {
         const remaining = Math.max(0, minimum - input.value.trim().length);
-        button.disabled = remaining > 0;
-        note.textContent = remaining > 0 ? `${remaining} more character${remaining === 1 ? "" : "s"} needed` : "";
+        ready(remaining === 0);
+        note.textContent =
+          remaining > 0 ? `Write at least ${minimum} character${minimum === 1 ? "" : "s"} (${remaining} more to go)` : "";
       };
       input.oninput = check;
-      body.append(input, note, button);
+      button.onclick = () => !button.disabled && proceed();
+      slot.append(input, note);
       check();
       input.focus();
       return;
     }
 
-    if (warning?.challenge === "effort" && warning.effortType === "math") {
-      renderMathChallenge(body, warning.mathQuestionCount, warning.mathStartingLevel, proceed);
+    if (warning.challenge === "effort" && warning.effortType === "math") {
+      renderMathChallenge(slot, button, warning.mathQuestionCount, warning.mathStartingLevel, proceed, (seconds, onTick, onDone) =>
+        countdown(seconds, onTick, onDone),
+      );
       return;
     }
 
-    // Wait to unlock: grant temporary access. Fixed uses the preset minutes;
-    // dynamic lets me choose how long right here, then asks again next time.
-    const minutes = Math.max(1, warning?.unlockMinutes ?? 15);
-    if (decision.reason !== "on-open" && warning?.waitType === "dynamic") {
+    // Wait to unlock: a fixed unlock uses the preset minutes; "Ask me how much
+    // time I need" lets me choose right here, and asks again next time.
+    const minutes = Math.max(1, warning.unlockMinutes);
+    ready(true);
+    if (decision.reason !== "on-open" && warning.waitType === "dynamic") {
+      const label = document.createElement("label");
+      label.className = "minutes";
       const input = makeInput("input", "");
       input.type = "number";
       input.inputMode = "numeric";
       input.min = "1";
       input.value = String(minutes);
+      input.setAttribute("aria-label", "Minutes");
       const chosen = () => Math.max(1, Math.floor(Number(input.value)) || 0);
-      const button = makePrimary(`Unlock for ${chosen()} min`, () => proceed(chosen()));
-      input.oninput = () => (button.textContent = `Unlock for ${chosen()} min`);
-      body.append(input, button);
+      label.append(input, document.createTextNode(" minutes"));
+      button.onclick = () => proceed(chosen());
+      slot.appendChild(label);
       input.focus();
     } else {
-      body.appendChild(makePrimary(`Unlock for ${minutes} min`, () => proceed(minutes)));
+      button.onclick = () => proceed(minutes);
     }
   }
 
@@ -318,13 +351,19 @@ export function createOverlay(): Overlay {
   return { show, hide };
 }
 
+// Android waits this long after a wrong answer before the next try.
+const MATH_RETRY_SECONDS = 15;
+
 function renderMathChallenge(
-  body: HTMLDivElement,
+  slot: HTMLDivElement,
+  button: HTMLButtonElement,
   questionCount: number,
   startingLevel: number,
   proceed: () => void,
+  countdown: (seconds: number, onTick: (left: number) => void, onDone: () => void) => void,
 ): void {
   const challenge = new AdaptiveMathChallenge(questionCount, startingLevel);
+  const required = Math.max(1, questionCount);
   const progress = makeNote("");
   const problem = document.createElement("p");
   problem.className = "problem";
@@ -332,30 +371,59 @@ function renderMathChallenge(
   input.inputMode = "decimal";
   input.enterKeyHint = "done";
   const feedback = makeNote("");
-  const button = makePrimary("Check answer", submit);
+  feedback.classList.add("error");
+  let waiting = false;
+  let complete = false;
 
-  function refresh(): void {
+  function show(): void {
     problem.textContent = challenge.currentProblem.expression;
-    progress.textContent = `${challenge.solvedCount} of ${Math.max(1, questionCount)} solved`;
+    progress.textContent = `${challenge.solvedCount} of ${required} solved`;
     input.value = "";
     input.focus();
   }
 
   function submit(): void {
-    const result = challenge.submit(input.value);
-    if (result.complete) {
-      proceed();
+    if (complete) return proceed();
+    if (waiting) return;
+    const raw = input.value.trim().replace(",", ".");
+    if (!raw || !Number.isFinite(Number(raw))) {
+      feedback.textContent = "Enter a number";
       return;
     }
-    feedback.textContent = result.correct ? "Correct. Here's the next one." : "Not quite. The next one will be a little easier.";
-    refresh();
+    const result = challenge.submit(raw);
+    if (result.complete) {
+      complete = true;
+      problem.remove();
+      input.remove();
+      feedback.textContent = "";
+      progress.textContent = `${result.solvedCount} of ${required} solved`;
+      button.textContent = "Proceed";
+      return;
+    }
+    feedback.textContent = result.correct ? "" : "Incorrect answer. Wait before trying again.";
+    show();
+    if (result.correct) return;
+    waiting = true;
+    button.disabled = true;
+    countdown(
+      MATH_RETRY_SECONDS,
+      (left) => (button.textContent = `Try again in ${left} second${left === 1 ? "" : "s"}`),
+      () => {
+        waiting = false;
+        button.disabled = false;
+        button.textContent = "Check answer";
+      },
+    );
   }
 
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") submit();
   });
-  body.append(progress, problem, input, feedback, button);
-  refresh();
+  button.textContent = "Check answer";
+  button.disabled = false;
+  button.onclick = submit;
+  slot.append(progress, problem, input, feedback);
+  show();
 }
 
 function normalizeLines(value: string): string {
