@@ -8,6 +8,7 @@ import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
 import { clearExitedOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
 import { noteOpen } from "../core/opens";
+import { compiledLists, reconcileLists } from "../core/lists";
 import { groupMatches } from "../lib/match";
 import { promptValues } from "../lib/prompt";
 import { mergeUsage } from "../lib/usage-data";
@@ -114,13 +115,14 @@ function friendlyError(err: unknown): string {
 }
 
 async function decide(location: SiteLocation): Promise<BlockDecision> {
-  const [settings, usage, grants, proceeds, focus, focusLog] = await Promise.all([
+  const [settings, usage, grants, proceeds, focus, focusLog, lists] = await Promise.all([
     get("settings"),
     get("usage"),
     get("grants"),
     get("proceeds"),
     activeSession(),
     get("focusLog"),
+    compiledLists(),
   ]);
   const now = Date.now();
   return evaluate({
@@ -132,6 +134,7 @@ async function decide(location: SiteLocation): Promise<BlockDecision> {
     now,
     grants,
     proceeds,
+    lists,
   });
 }
 
@@ -162,8 +165,8 @@ async function gentlePrompt(url: string): Promise<PromptReply> {
   const settings = await get("settings");
   const config = settings.gentlePrompt;
   if (!location || !config.enabled || !groupMatches(location, config.sites)) return null;
-  const [usage, deltas, opens] = await Promise.all([get("usage"), liveDeltas(), get("opens")]);
-  return { config, values: promptValues(location.domain, mergeUsage(usage, deltas), opens, settings) };
+  const [usage, deltas, opens, lists] = await Promise.all([get("usage"), liveDeltas(), get("opens"), compiledLists()]);
+  return { config, values: promptValues(location.domain, mergeUsage(usage, deltas), opens, settings, Date.now(), lists) };
 }
 
 function supportsWindows(): boolean {
@@ -380,6 +383,7 @@ export default defineBackground(() => {
   });
 
   void activeSession().then(scheduleFocusEnd);
+  void get("settings").then(reconcileLists);
   void get("grants").then(scheduleGrantEnd);
 
   // On worker start, only begin tracking if the user has accepted the terms.
@@ -400,7 +404,11 @@ export default defineBackground(() => {
       void evaluateAllTabs();
     }
     if ("focusLog" in changed) void evaluateAllTabs();
-    if ("settings" in changed) void evaluateAllTabs();
+    if ("settings" in changed) {
+      void evaluateAllTabs();
+      if (changed.settings) void reconcileLists(changed.settings);
+    }
+    if ("wordLists" in changed) void evaluateAllTabs();
     if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
   });
 

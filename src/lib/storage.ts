@@ -1,6 +1,7 @@
 import { browser } from "#imports";
 import type { FocusLogEntry, FocusSession, ProceedRecord, Settings, SiteOpens, UsageHistory } from "./types";
 import { normalizeSettings } from "./types";
+import type { StoredList } from "./word-lists";
 
 interface StoreShape {
   usage: UsageHistory;
@@ -11,6 +12,7 @@ interface StoreShape {
   proceeds: Record<string, ProceedRecord>; // groupId -> proceed tally
   termsAccepted: boolean;
   opens: SiteOpens;
+  wordLists: Record<string, StoredList>; // local only, see word-lists.ts
 }
 
 export const DEFAULT_SETTINGS: Settings = normalizeSettings({});
@@ -24,6 +26,7 @@ const DEFAULTS: StoreShape = {
   proceeds: {},
   termsAccepted: false,
   opens: { last: "", days: {} },
+  wordLists: {},
 };
 
 export async function get<K extends keyof StoreShape>(key: K): Promise<StoreShape[K]> {

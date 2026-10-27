@@ -207,7 +207,7 @@ function UsageLimitSheet({
   );
 }
 
-function EditorSheet({
+export function EditorSheet({
   title,
   subtitle,
   nav,
@@ -216,7 +216,7 @@ function EditorSheet({
 }: {
   title: string;
   subtitle: string;
-  nav: ReactNode;
+  nav?: ReactNode;
   onClose: () => void;
   children: ReactNode;
 }) {

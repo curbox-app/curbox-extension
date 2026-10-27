@@ -112,3 +112,16 @@ describe("scheduled usage blocking", () => {
     expect(evaluate(input).canProceed).toBe(false);
   });
 });
+
+describe("imported word lists", () => {
+  it("blocks sites from an attached list", async () => {
+    const { compileList } = await import("../lib/word-lists");
+    const settings = settingsFor(0);
+    settings.groups[0].matchers = [];
+    settings.groups[0].lists = [{ id: "pack", name: "Video", count: 1 }];
+    const base = { settings, focus: null, usage: {}, focusLog: [], now: NOW, grants: {}, proceeds: {} };
+    const location = { domain: "www2.youtube.com", path: "/" };
+    expect(evaluate({ ...base, location }).blocked).toBe(false);
+    expect(evaluate({ ...base, location, lists: new Map([["pack", compileList("youtube.com")]]) }).blocked).toBe(true);
+  });
+});

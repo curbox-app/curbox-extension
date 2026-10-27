@@ -3,6 +3,7 @@ import type { BlockGroup, FocusGroup } from "../../lib/types";
 import { btnPrimary, btnGhost, inputCls, MatcherList } from "../components";
 import { useDraft } from "../useDraft";
 import { ScheduleEditor } from "./ScheduleEditor";
+import { ListImporter } from "./ListImporter";
 import { WarningEditor, warningSummary } from "./WarningEditor";
 
 export type ScreenBack = { label: string; go: () => void };
@@ -57,6 +58,8 @@ export function GroupEditor({
         matchers={draft.matchers}
         onChange={(matchers) => patch({ matchers })}
       />
+
+      <ListImporter matchers={draft.matchers} lists={draft.lists} onChange={patch} />
 
       <ScheduleEditor schedule={draft.schedule} onChange={(schedule) => patch({ schedule })} />
 

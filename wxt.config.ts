@@ -14,7 +14,7 @@ export default defineConfig({
     action: {
       default_title: "Curbox",
     },
-    permissions: ["storage", "tabs", "alarms", "idle", "favicon", "scripting"],
+    permissions: ["storage", "unlimitedStorage", "tabs", "alarms", "idle", "favicon", "scripting"],
     host_permissions: ["<all_urls>"],
     web_accessible_resources: [
       {

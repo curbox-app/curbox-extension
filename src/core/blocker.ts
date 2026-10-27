@@ -1,5 +1,6 @@
 import type { SiteLocation } from "../lib/url";
 import { groupMatches } from "../lib/match";
+import { targetMatches, type CompiledLists } from "../lib/word-lists";
 import { dateKey } from "../lib/time";
 import type {
   BlockDecision,
@@ -24,6 +25,7 @@ interface EvalInput {
   now: number;
   grants: Record<string, number>;
   proceeds: Record<string, ProceedRecord>;
+  lists?: CompiledLists;
 }
 
 interface ActiveWindow {
@@ -86,17 +88,28 @@ function localMinute(startOfToday: number, dayOffset: number, minute: number): n
   return day.getTime();
 }
 
-function blockReason(group: BlockGroup, usage: UsageHistory, window: ActiveWindow, now: number): BlockReason {
+function blockReason(
+  group: BlockGroup,
+  usage: UsageHistory,
+  window: ActiveWindow,
+  now: number,
+  lists: CompiledLists | undefined,
+): BlockReason {
   if (group.onEachOpen) return "on-open";
   // Android applies the current calendar day's limit even when the active
   // interval began before midnight.
   const day = new Date(now).getDay();
   const limitMinutes = group.schedule.days[day]?.limitMinutes ?? 0;
   if (limitMinutes <= 0) return "time";
-  return sumGroupUsage(group.matchers, usage, window) >= limitMinutes * 60_000 ? "usage" : "";
+  return sumGroupUsage(group, usage, window, lists) >= limitMinutes * 60_000 ? "usage" : "";
 }
 
-function sumGroupUsage(matchers: string[], usage: UsageHistory, window: ActiveWindow): number {
+function sumGroupUsage(
+  group: BlockGroup,
+  usage: UsageHistory,
+  window: ActiveWindow,
+  lists: CompiledLists | undefined,
+): number {
   let total = 0;
   const startDay = new Date(window.start);
   const endDay = new Date(Math.max(window.start, window.end - 1));
@@ -104,7 +117,7 @@ function sumGroupUsage(matchers: string[], usage: UsageHistory, window: ActiveWi
   for (const key of keys) {
     for (const [domain, domainUsage] of Object.entries(usage[key] ?? {})) {
       for (const [path, ms] of Object.entries(domainUsage.paths)) {
-        if (!groupMatches({ domain, path }, matchers)) continue;
+        if (!targetMatches({ domain, path }, group, lists)) continue;
         const buckets = domainUsage.pathHours?.[path];
         if (!buckets) {
           if (isWholeLocalDay(window, key)) total += ms;
@@ -183,7 +196,7 @@ function defaultMessage(group: BlockGroup, reason: BlockReason): string {
 }
 
 export function evaluate(input: EvalInput): BlockDecision {
-  const { location, settings, focus, usage, focusLog, now, grants, proceeds } = input;
+  const { location, settings, focus, usage, focusLog, now, grants, proceeds, lists } = input;
 
   if (focus && focusBlocks(location, focus)) {
     return {
@@ -201,10 +214,10 @@ export function evaluate(input: EvalInput): BlockDecision {
   }
 
   for (const group of settings.groups) {
-    if (!group.enabled || !groupMatches(location, group.matchers)) continue;
+    if (!group.enabled || !targetMatches(location, group, lists)) continue;
     const window = activeWindow(group.schedule, now);
     if (!window) continue;
-    const reason = blockReason(group, usage, window, now);
+    const reason = blockReason(group, usage, window, now, lists);
     if (!reason || (grants[group.id] ?? 0) > now) continue;
     const goalRemaining = focusGoalRemaining(group.warning, focusLog, focus, now);
     return {
@@ -224,8 +237,8 @@ export function evaluate(input: EvalInput): BlockDecision {
   return PASS;
 }
 
-export function matchingOnOpenGroups(location: SiteLocation, settings: Settings): string[] {
+export function matchingOnOpenGroups(location: SiteLocation, settings: Settings, lists?: CompiledLists): string[] {
   return settings.groups
-    .filter((group) => group.enabled && group.onEachOpen && groupMatches(location, group.matchers))
+    .filter((group) => group.enabled && group.onEachOpen && targetMatches(location, group, lists))
     .map((group) => group.id);
 }

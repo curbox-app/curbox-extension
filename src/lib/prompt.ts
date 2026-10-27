@@ -1,4 +1,5 @@
 import { groupMatches } from "./match";
+import { targetMatches, type CompiledLists } from "./word-lists";
 import { siteName } from "./site";
 import { dayTotal } from "./stats";
 import { dateKey } from "./time";
@@ -63,6 +64,7 @@ export function promptValues(
   opens: SiteOpens,
   settings: Settings,
   now = Date.now(),
+  lists?: CompiledLists,
 ): PromptValues {
   const todayKey = dateKey(new Date(now));
   const yesterday = new Date(now);
@@ -77,31 +79,36 @@ export function promptValues(
     appOpensToday: opens.days[todayKey]?.[domain] ?? 0,
     screenTimeTodayMs: dayTotal(usage, todayKey),
     screenTimeYesterdayMs: dayTotal(usage, yesterdayKey),
-    mindfulUsageTodayMs: matchedUsage(today, settings.gentlePrompt.sites),
+    mindfulUsageTodayMs: matchedUsage(today, (loc) => groupMatches(loc, settings.gentlePrompt.sites)),
     reelCount: reelCount(today),
-    groupUsageToday: groupTotals(today, settings),
-    groupUsageYesterday: groupTotals(prior, settings),
+    groupUsageToday: groupTotals(today, settings, lists),
+    groupUsageYesterday: groupTotals(prior, settings, lists),
   };
 }
 
-function matchedUsage(day: DayUsage, matchers: string[]): number {
+function matchedUsage(day: DayUsage, matches: (loc: { domain: string; path: string }) => boolean): number {
   let total = 0;
   for (const [domain, entry] of Object.entries(day)) {
     for (const [path, ms] of Object.entries(entry.paths)) {
-      if (groupMatches({ domain, path }, matchers)) total += ms;
+      if (matches({ domain, path })) total += ms;
     }
   }
   return total;
 }
 
 // Groups that share a name count as one, like Android.
-function groupTotals(day: DayUsage, settings: Settings): Record<string, number> {
-  const matchersByName = new Map<string, string[]>();
+function groupTotals(day: DayUsage, settings: Settings, lists: CompiledLists | undefined): Record<string, number> {
+  const byName = new Map<string, Settings["groups"]>();
   for (const group of settings.groups) {
     const name = group.name.trim().toLowerCase();
-    matchersByName.set(name, [...(matchersByName.get(name) ?? []), ...group.matchers]);
+    byName.set(name, [...(byName.get(name) ?? []), group]);
   }
-  return Object.fromEntries([...matchersByName].map(([name, matchers]) => [name, matchedUsage(day, matchers)]));
+  return Object.fromEntries(
+    [...byName].map(([name, groups]) => [
+      name,
+      matchedUsage(day, (loc) => groups.some((group) => targetMatches(loc, group, lists))),
+    ]),
+  );
 }
 
 function reelCount(day: DayUsage): number {

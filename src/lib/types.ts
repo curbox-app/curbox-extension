@@ -1,3 +1,5 @@
+import type { WordListRef } from "./word-lists";
+
 export type DateKey = string;
 
 export interface ProceedRecord {
@@ -75,6 +77,7 @@ export interface BlockGroup {
   name: string;
   enabled: boolean;
   matchers: string[]; // plain domains or keyword patterns
+  lists: WordListRef[]; // big imported lists, kept outside settings
   mode: BlockingMode;
   /** Android now combines active hours and usage in one group. */
   onEachOpen: boolean;
@@ -232,6 +235,7 @@ export function newGroup(name: string): BlockGroup {
     name,
     enabled: true,
     matchers: [],
+    lists: [],
     mode: "usage",
     onEachOpen: false,
     schedule: defaultSchedule(),
@@ -332,6 +336,7 @@ function normalizeGroup(group: Partial<BlockGroup>, schemaVersion?: number): Blo
     name: typeof group.name === "string" ? group.name : "Untitled",
     enabled: group.enabled !== false,
     matchers: Array.isArray(group.matchers) ? group.matchers.filter((v): v is string => typeof v === "string") : [],
+    lists: Array.isArray(group.lists) ? group.lists.filter(isListRef) : [],
     mode: onEachOpen ? "on-open" : "usage",
     onEachOpen,
     schedule: {
@@ -342,6 +347,11 @@ function normalizeGroup(group: Partial<BlockGroup>, schemaVersion?: number): Blo
     },
     warning,
   };
+}
+
+function isListRef(value: unknown): value is WordListRef {
+  const ref = value as WordListRef;
+  return !!ref && typeof ref.id === "string" && typeof ref.name === "string" && typeof ref.count === "number";
 }
 
 function normalizeWarning(value: Partial<WarningScreen> | undefined): WarningScreen {

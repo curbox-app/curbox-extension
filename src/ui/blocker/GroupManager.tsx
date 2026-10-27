@@ -48,7 +48,7 @@ export function GroupManager({
       groups={groups}
       empty="No blocks yet. Add one below."
       describe={(group) =>
-        `${group.matchers.length} site${group.matchers.length === 1 ? "" : "s"} · ${group.onEachOpen ? "On each open" : "Scheduled usage"}`
+        `${siteCount(group)} · ${group.onEachOpen ? "On each open" : "Scheduled usage"}`
       }
       onOpen={(group) => {
         setEditing({ group, isNew: false });
@@ -61,4 +61,9 @@ export function GroupManager({
       }}
     />
   );
+}
+
+function siteCount(group: BlockGroup): string {
+  const count = group.matchers.length + group.lists.reduce((sum, ref) => sum + ref.count, 0);
+  return `${count.toLocaleString()} site${count === 1 ? "" : "s"}`;
 }

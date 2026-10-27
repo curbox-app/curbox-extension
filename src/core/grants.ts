@@ -1,6 +1,7 @@
 import { get, set, update } from "../lib/storage";
 import type { SiteLocation } from "../lib/url";
 import { matchingOnOpenGroups } from "./blocker";
+import { compiledLists } from "./lists";
 
 const DEFAULT_UNLOCK_MINUTES = 2;
 
@@ -53,7 +54,7 @@ export async function recordProceed(groupId: string, minutes?: number): Promise<
 // that group, and clears it only after leaving the group.
 export async function clearExitedOnOpenGrants(location: SiteLocation | null): Promise<void> {
   const settings = await get("settings");
-  const stillInside = new Set(location ? matchingOnOpenGroups(location, settings) : []);
+  const stillInside = new Set(location ? matchingOnOpenGroups(location, settings, await compiledLists()) : []);
   const ids = settings.groups.filter((group) => group.onEachOpen).map((group) => group.id);
   const grants = await get("grants");
   const next = { ...grants };
