@@ -1,6 +1,6 @@
 import { browser } from "#imports";
-import { update } from "../lib/storage";
-import { addUsage, mergeUsage, sliceSpanByHour } from "../lib/usage-data";
+import { pruneUsage, updateUsageDays } from "../lib/storage";
+import { addUsage, mergeDay, retentionCutoff, sliceSpanByHour } from "../lib/usage-data";
 import type { DateKey, DayUsage } from "../lib/types";
 import type { SiteLocation } from "../lib/url";
 
@@ -74,6 +74,7 @@ export function createUsageTracker(
   // Unpersisted deltas, grouped day -> domain -> usage. Drained on each tick
   // so frequent tab/visibility changes only touch memory, never storage.local.
   let pending = new Map<DateKey, DayUsage>();
+  let prunedBefore: DateKey | null = null;
 
   // We only count while a tab is tracked, its window holds OS focus, the page
   // reports itself visible, and the user is present (or provably listening).
@@ -184,7 +185,13 @@ export function createUsageTracker(
     // only lose this one batch, never double count it.
     snapshot();
     try {
-      await update("usage", (usage) => mergeUsage(usage, drained));
+      const cutoff = retentionCutoff();
+      const days = [...drained.keys()].filter((day) => day >= cutoff);
+      await updateUsageDays(days, (day, current) => mergeDay(current, drained.get(day)!));
+      if (prunedBefore !== cutoff) {
+        prunedBefore = cutoff;
+        void pruneUsage(cutoff).catch(() => (prunedBefore = null));
+      }
     } catch {
       // Put the batch back; the next tick retries.
       for (const [key, day] of drained) {

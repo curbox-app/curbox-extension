@@ -12,16 +12,10 @@ export function matchKeyword(loc: SiteLocation, rawPattern: string): boolean {
   if (!pattern) return false;
   const full = normalize(`${loc.domain}${loc.path}`);
 
-  if (pattern.toLowerCase().startsWith("r:")) {
-    try {
-      return new RegExp(pattern.slice(2), "i").test(full);
-    } catch {
-      return false;
-    }
-  }
+  if (pattern.toLowerCase().startsWith("r:")) return compiled(pattern, () => new RegExp(pattern.slice(2), "i"))?.test(full) ?? false;
 
   const keyword = normalize(pattern);
-  if (keyword.includes("*") || keyword.includes("?")) return wildcardToRegex(keyword).test(full);
+  if (keyword.includes("*") || keyword.includes("?")) return compiled(keyword, () => wildcardToRegex(keyword))!.test(full);
 
   if (keyword.startsWith("/")) {
     const pathStart = full.indexOf("/");
@@ -53,6 +47,23 @@ export function matchKeyword(loc: SiteLocation, rawPattern: string): boolean {
 
 export function groupMatches(loc: SiteLocation, matchers: string[]): boolean {
   return matchers.some((matcher) => matchKeyword(loc, matcher));
+}
+
+// Matchers run per path, per group, on every evaluation, so build each
+// expression once. null remembers a pattern that is not a valid expression.
+const regexCache = new Map<string, RegExp | null>();
+
+function compiled(key: string, build: () => RegExp): RegExp | null {
+  let regex = regexCache.get(key);
+  if (regex !== undefined) return regex;
+  try {
+    regex = build();
+  } catch {
+    regex = null;
+  }
+  if (regexCache.size >= 1000) regexCache.clear();
+  regexCache.set(key, regex);
+  return regex;
 }
 
 function wildcardToRegex(pattern: string): RegExp {

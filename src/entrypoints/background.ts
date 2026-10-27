@@ -1,7 +1,7 @@
 import { defineBackground, browser } from "#imports";
-import { get, watch } from "../lib/storage";
+import { enableStorageCache, get, getUsage, migrateSettings, watch } from "../lib/storage";
 import { parseLocation, type SiteLocation } from "../lib/url";
-import type { BlockDecision, FocusSession } from "../lib/types";
+import type { BlockDecision, FocusSession, Settings } from "../lib/types";
 import type { ContentMessage, PromptReply } from "../lib/messages";
 import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
@@ -12,6 +12,7 @@ import { compiledLists, reconcileLists } from "../core/lists";
 import { groupMatches } from "../lib/match";
 import { promptValues } from "../lib/prompt";
 import { mergeUsage } from "../lib/usage-data";
+import { dateKey } from "../lib/time";
 import {
   persist,
   startTracking,
@@ -114,43 +115,60 @@ function friendlyError(err: unknown): string {
   return raw || "Something went wrong. Please try again.";
 }
 
-async function decide(location: SiteLocation): Promise<BlockDecision> {
+// A schedule can start the evening before, so limits and prompts only ever
+// need today and yesterday.
+function recentDays(now = Date.now()): string[] {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return [dateKey(yesterday), dateKey(new Date(now))];
+}
+
+type DecideInput = Omit<Parameters<typeof evaluate>[0], "location" | "now">;
+
+// Everything a verdict depends on, loaded once and shared by every tab in a pass.
+async function loadDecideInput(): Promise<DecideInput> {
   const [settings, usage, grants, proceeds, focus, focusLog, lists] = await Promise.all([
     get("settings"),
-    get("usage"),
+    getUsage(recentDays()),
     get("grants"),
     get("proceeds"),
     activeSession(),
     get("focusLog"),
     compiledLists(),
   ]);
-  const now = Date.now();
-  return evaluate({
-    location,
-    settings,
-    focus,
-    usage,
-    focusLog,
-    now,
-    grants,
-    proceeds,
-    lists,
-  });
+  return { settings, usage, grants, proceeds, focus, focusLog, lists };
 }
 
-async function evaluateTab(tabId: number, url: string | undefined, makeActive: boolean): Promise<void> {
+// Last verdict delivered to each tab, so repeated passes (ticks, settings
+// edits, focus changes) only message the tabs whose verdict changed.
+const delivered = new Map<number, string>();
+
+function deliver(tabId: number, decision: BlockDecision): void {
+  const key = JSON.stringify(decision);
+  if (delivered.get(tabId) === key) return;
+  delivered.set(tabId, key);
+  sendToTab(tabId, { type: "evaluate", decision });
+}
+
+async function evaluateTab(
+  tabId: number,
+  url: string | undefined,
+  makeActive: boolean,
+  input?: DecideInput,
+): Promise<BlockDecision | null> {
   const location = url ? parseLocation(url) : null;
   if (makeActive) await clearExitedOnOpenGrants(location);
   if (!location) {
     if (makeActive) {
-      stopTracking();
+      void stopTracking();
       void noteOpen(null);
     }
-    sendToTab(tabId, { type: "evaluate", decision: PASS });
-    return;
+    // Browser pages and blank tabs cannot run the content script.
+    return null;
   }
-  const decision = await decide(location);
-  sendToTab(tabId, { type: "evaluate", decision });
+  // Clearing on-open grants above may have changed what a shared pass loaded.
+  const fresh = makeActive || !input ? await loadDecideInput() : input;
+  const decision = evaluate({ ...fresh, location, now: Date.now() });
   // The decision is async: if focus moved to another tab meanwhile, a newer
   // evaluation owns the tracker and this stale one must not steal it back.
   if (makeActive && tabId === focusedTabId) {
@@ -158,6 +176,12 @@ async function evaluateTab(tabId: number, url: string | undefined, makeActive: b
     else void startTracking(tabId, location);
     void noteOpen(decision.blocked ? null : location.domain);
   }
+  return decision;
+}
+
+async function refreshTab(tabId: number, url: string | undefined, makeActive: boolean, input?: DecideInput): Promise<void> {
+  const decision = await evaluateTab(tabId, url, makeActive, input);
+  if (decision) deliver(tabId, decision);
 }
 
 async function gentlePrompt(url: string): Promise<PromptReply> {
@@ -165,7 +189,7 @@ async function gentlePrompt(url: string): Promise<PromptReply> {
   const settings = await get("settings");
   const config = settings.gentlePrompt;
   if (!location || !config.enabled || !groupMatches(location, config.sites)) return null;
-  const [usage, deltas, opens, lists] = await Promise.all([get("usage"), liveDeltas(), get("opens"), compiledLists()]);
+  const [usage, deltas, opens, lists] = await Promise.all([getUsage(recentDays()), liveDeltas(), get("opens"), compiledLists()]);
   return { config, values: promptValues(location.domain, mergeUsage(usage, deltas), opens, settings, Date.now(), lists) };
 }
 
@@ -202,20 +226,44 @@ async function evaluateFocused(): Promise<void> {
     if (tab?.id == null) return;
     focusedTabId = tab.id;
   }
-  try {
-    const tab = await browser.tabs.get(focusedTabId);
-    void setTabAudible(tab.audible === true);
-    await evaluateTab(focusedTabId, tab.url, true);
-  } catch {
-    focusedTabId = null;
+  const tabId = focusedTabId;
+  const tab = await browser.tabs.get(tabId).catch(() => null);
+  if (!tab) {
+    if (focusedTabId === tabId) focusedTabId = null;
+    return;
   }
+  void setTabAudible(tab.audible === true);
+  await refreshTab(tabId, tab.url, true);
 }
 
-async function evaluateAllTabs(): Promise<void> {
-  const tabs = await browser.tabs.query({});
+// Unloaded tabs run no script; they ask for a verdict when they load again.
+type TabInfo = { id?: number; url?: string; discarded?: boolean; status?: string };
+const isLive = (tab: TabInfo) => tab.id != null && !tab.discarded && tab.status !== "unloaded";
+
+async function evaluateAllTabs(settings?: Settings): Promise<void> {
+  const [tabs, input] = await Promise.all([browser.tabs.query({}) as Promise<TabInfo[]>, loadDecideInput()]);
   await Promise.all(
-    tabs.map((tab) => (tab.id != null ? evaluateTab(tab.id, tab.url, tab.id === focusedTabId) : Promise.resolve())),
+    tabs.filter(isLive).map((tab) => {
+      if (settings && tab.url && parseLocation(tab.url)) sendToTab(tab.id!, { type: "settings", settings });
+      return refreshTab(tab.id!, tab.url, tab.id === focusedTabId, input);
+    }),
   );
+}
+
+// Ending a session writes focus and focusLog separately, and an import can
+// touch settings and lists together, so fold bursts into one pass.
+let passTimer: ReturnType<typeof setTimeout> | null = null;
+let passSettings: Settings | undefined;
+
+function scheduleAllTabs(settings?: Settings): void {
+  if (settings) passSettings = settings;
+  if (passTimer) return;
+  passTimer = setTimeout(() => {
+    const pushed = passSettings;
+    passTimer = null;
+    passSettings = undefined;
+    void evaluateAllTabs(pushed).catch(() => undefined);
+  }, 50);
 }
 
 function scheduleFocusEnd(focus: FocusSession | null): void {
@@ -330,14 +378,16 @@ function watchWindowFocus(): void {
       return;
     }
     setWindowFocused(true);
-    void browser.tabs.query({ active: true, windowId }).then((tabs) => {
-      const tab = tabs[0];
-      if (tab?.id != null) {
+    void browser.tabs
+      .query({ active: true, windowId })
+      .then((tabs) => {
+        const tab = tabs[0];
+        if (tab?.id == null) return;
         focusedTabId = tab.id;
         void setTabAudible(tab.audible === true);
-        void evaluateTab(tab.id, tab.url, true);
-      }
-    });
+        return refreshTab(tab.id, tab.url, true);
+      })
+      .catch(() => undefined);
   });
 }
 
@@ -353,6 +403,9 @@ function startTickAlarm(): void {
 }
 
 export default defineBackground(() => {
+  enableStorageCache();
+  void migrateSettings().catch(() => undefined);
+
   toolbarAction()?.onClicked.addListener(() => {
     void openAppWindow();
   });
@@ -369,16 +422,19 @@ export default defineBackground(() => {
     if (alarm.name === "tick") {
       // Re-query heals any state change the worker missed while it was asleep.
       refreshIdle();
-      void get("termsAccepted").then((accepted) => {
-        if (!accepted) return;
-        void persist();
-        void evaluateFocused();
-      });
+      // Bank the tick first, so a limit reached during it blocks right away.
+      void get("termsAccepted")
+        .then(async (accepted) => {
+          if (!accepted) return;
+          await persist().catch(() => undefined);
+          await evaluateFocused();
+        })
+        .catch(() => undefined);
       void sync.pullSinceCursor().catch(() => undefined);
     } else if (alarm.name === "focus-end") {
-      void activeSession().then(() => evaluateAllTabs());
+      void activeSession().then(() => scheduleAllTabs(), () => undefined);
     } else if (alarm.name === "grant-end") {
-      void pruneGrants().then(() => evaluateAllTabs());
+      void pruneGrants().then(() => scheduleAllTabs(), () => undefined);
     }
   });
 
@@ -391,81 +447,99 @@ export default defineBackground(() => {
   void get("termsAccepted").then((accepted) => {
     if (!accepted) return;
     syncWindowFocus();
-    void evaluateFocused();
+    void evaluateFocused().catch(() => undefined);
   });
 
   watch((changed) => {
     if ("termsAccepted" in changed && changed.termsAccepted) {
       syncWindowFocus();
-      void evaluateFocused();
+      void evaluateFocused().catch(() => undefined);
     }
-    if ("focus" in changed) {
-      scheduleFocusEnd(changed.focus ?? null);
-      void evaluateAllTabs();
-    }
-    if ("focusLog" in changed) void evaluateAllTabs();
-    if ("settings" in changed) {
-      void evaluateAllTabs();
-      if (changed.settings) void reconcileLists(changed.settings);
-    }
-    if ("wordLists" in changed) void evaluateAllTabs();
+    if ("focus" in changed) scheduleFocusEnd(changed.focus ?? null);
     if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
+    if ("settings" in changed && changed.settings) void reconcileLists(changed.settings).catch(() => undefined);
+    if ("focus" in changed || "focusLog" in changed || "settings" in changed || "wordLists" in changed) {
+      scheduleAllTabs(changed.settings);
+    }
   });
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
     focusedTabId = tabId;
-    void browser.tabs.get(tabId).then((tab) => {
-      void setTabAudible(tab.audible === true);
-      return evaluateTab(tabId, tab.url, true);
-    });
+    void browser.tabs
+      .get(tabId)
+      .then((tab) => {
+        void setTabAudible(tab.audible === true);
+        return refreshTab(tabId, tab.url, true);
+      })
+      .catch(() => undefined);
   });
 
-  browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const onTabUpdated: Parameters<typeof browser.tabs.onUpdated.addListener>[0] = (tabId, changeInfo, tab) => {
     if (changeInfo.audible !== undefined && tabId === focusedTabId) {
       void setTabAudible(changeInfo.audible);
     }
+    // A new document starts with no overlay and asks for its own verdict.
+    if (changeInfo.status === "loading") delivered.delete(tabId);
     if (changeInfo.url) {
-      void evaluateTab(tabId, tab.url, tabId === focusedTabId);
-      return;
+      delivered.delete(tabId);
+      void refreshTab(tabId, tab.url, tabId === focusedTabId);
     }
-    if (changeInfo.status === "complete" && tab.url) {
-      void evaluateTab(tabId, tab.url, tabId === focusedTabId);
-    }
+  };
+  // Firefox can skip title, icon and progress updates entirely, which would
+  // otherwise wake the worker many times per page load. Chromium has no filter.
+  try {
+    (browser.tabs.onUpdated.addListener as (cb: typeof onTabUpdated, filter: object) => void)(onTabUpdated, {
+      properties: ["url", "status", "audible"],
+    });
+  } catch {
+    browser.tabs.onUpdated.addListener(onTabUpdated);
+  }
+
+  browser.tabs.onRemoved.addListener((tabId) => {
+    delivered.delete(tabId);
+    if (tabId === focusedTabId) focusedTabId = null;
   });
 
   watchWindowFocus();
 
   browser.runtime.onMessage.addListener((message: ContentMessage, sender, sendResponse) => {
     const tabId = sender.tab?.id;
-    if (message.type === "visibility") {
+    if (message.type === "visibility" || message.type === "navigated") {
       if (tabId != null && tabId === focusedTabId) {
         // The page only reports engaged when its window holds OS focus, so a
         // true here is proof the window is focused. Trust it to heal a focus
         // event the OS may have dropped (onFocusChanged is flaky on macOS).
-        if (message.visible) setWindowFocused(true);
-        setPageVisible(message.visible);
+        if (message.visible) void setWindowFocused(true);
+        void setPageVisible(message.visible);
       }
-      return;
     }
+    if (message.type === "visibility") return;
     if (message.type === "navigated") {
-      if (tabId != null) {
-        void evaluateTab(tabId, message.url, tabId === focusedTabId);
-      }
-      return;
+      if (tabId == null) return;
+      void evaluateTab(tabId, message.url, tabId === focusedTabId)
+        .then((decision) => {
+          if (decision) delivered.set(tabId, JSON.stringify(decision));
+          sendResponse(decision);
+        })
+        .catch(() => sendResponse(null));
+      return true;
     }
     if (message.type === "endFocus") {
+      // The page already hid its overlay, so forget what it was last sent.
+      if (tabId != null) delivered.delete(tabId);
       void endSession();
       return;
     }
     if (message.type === "prompt") {
-      void gentlePrompt(message.url).then(sendResponse);
+      void gentlePrompt(message.url).then(sendResponse, () => sendResponse(undefined));
       return true;
     }
     if (message.type === "proceed") {
-      void recordProceed(message.groupId, message.minutes).then(() => {
-        if (tabId != null) void evaluateTab(tabId, sender.tab?.url, tabId === focusedTabId);
-        sendResponse(true);
-      });
+      if (tabId != null) delivered.delete(tabId);
+      void recordProceed(message.groupId, message.minutes)
+        .then(() => (tabId != null ? refreshTab(tabId, sender.tab?.url, tabId === focusedTabId) : undefined))
+        .then(() => sendResponse(true))
+        .catch(() => sendResponse(false));
       return true;
     }
   });

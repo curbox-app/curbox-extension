@@ -54,39 +54,46 @@ export function sliceSpanByHour(from: number, to: number): Array<{ key: DateKey;
   return slices;
 }
 
+export function retentionCutoff(now = Date.now()): DateKey {
+  return dateKey(new Date(now - RETENTION_DAYS * 86_400_000));
+}
+
 export function mergeUsage(
   base: UsageHistory,
   deltas: Iterable<[DateKey, DayUsage]>,
   now = Date.now(),
 ): UsageHistory {
-  const cutoff = dateKey(new Date(now - RETENTION_DAYS * 86_400_000));
+  const cutoff = retentionCutoff(now);
   const next: UsageHistory = {};
   for (const [key, day] of Object.entries(base)) {
     if (key >= cutoff) next[key] = day;
   }
   for (const [key, day] of deltas) {
-    if (key < cutoff) continue;
-    const target = { ...(next[key] ?? {}) };
-    for (const [domain, buf] of Object.entries(day)) {
-      const entry = target[domain];
-      const paths = { ...entry?.paths };
-      for (const [path, ms] of Object.entries(buf.paths)) {
-        paths[path] = (paths[path] ?? 0) + ms;
-      }
-      const hours = addBuckets(entry?.hours, buf.hours);
-      const pathHours = { ...entry?.pathHours };
-      for (const [path, buckets] of Object.entries(buf.pathHours ?? {})) {
-        pathHours[path] = addBuckets(pathHours[path], buckets) ?? {};
-      }
-      const merged: DomainUsage = { ms: (entry?.ms ?? 0) + buf.ms, paths };
-      if (hours) merged.hours = hours;
-      if (Object.keys(pathHours).length > 0) merged.pathHours = pathHours;
-      capPaths(merged);
-      target[domain] = merged;
-    }
-    next[key] = target;
+    if (key >= cutoff) next[key] = mergeDay(next[key], day);
   }
   return next;
+}
+
+export function mergeDay(base: DayUsage | undefined, delta: DayUsage): DayUsage {
+  const target = { ...base };
+  for (const [domain, buf] of Object.entries(delta)) {
+    const entry = target[domain];
+    const paths = { ...entry?.paths };
+    for (const [path, ms] of Object.entries(buf.paths)) {
+      paths[path] = (paths[path] ?? 0) + ms;
+    }
+    const hours = addBuckets(entry?.hours, buf.hours);
+    const pathHours = { ...entry?.pathHours };
+    for (const [path, buckets] of Object.entries(buf.pathHours ?? {})) {
+      pathHours[path] = addBuckets(pathHours[path], buckets) ?? {};
+    }
+    const merged: DomainUsage = { ms: (entry?.ms ?? 0) + buf.ms, paths };
+    if (hours) merged.hours = hours;
+    if (Object.keys(pathHours).length > 0) merged.pathHours = pathHours;
+    capPaths(merged);
+    target[domain] = merged;
+  }
+  return target;
 }
 
 function capPaths(entry: DomainUsage): void {

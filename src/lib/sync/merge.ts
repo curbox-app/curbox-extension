@@ -1,9 +1,11 @@
 import type { DomainUsage, UsageHistory } from "../types";
 
+// Copies only the days b touches; a is never mutated.
 export function mergeUsage(a: UsageHistory, b: UsageHistory): UsageHistory {
-  const out: UsageHistory = structuredClone(a);
+  if (Object.keys(b).length === 0) return a;
+  const out: UsageHistory = { ...a };
   for (const [date, day] of Object.entries(b)) {
-    const target = (out[date] ??= {});
+    const target = (out[date] = { ...out[date] });
     for (const [domain, usage] of Object.entries(day)) {
       target[domain] = addDomain(target[domain], usage);
     }
@@ -12,7 +14,7 @@ export function mergeUsage(a: UsageHistory, b: UsageHistory): UsageHistory {
 }
 
 function addDomain(a: DomainUsage | undefined, b: DomainUsage): DomainUsage {
-  if (!a) return structuredClone(b);
+  if (!a) return { ms: b.ms, paths: { ...b.paths } };
   const paths: Record<string, number> = { ...a.paths };
   for (const [path, ms] of Object.entries(b.paths)) paths[path] = (paths[path] ?? 0) + ms;
   return { ms: a.ms + b.ms, paths };

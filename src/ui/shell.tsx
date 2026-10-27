@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useCurbox } from "./useStore";
 import { ErrorBoundary } from "./components";
 import { UsageView } from "./usage";
 import { GroupManager, type ScreenBack } from "./blocker";
 import { FocusPanel } from "./focus";
 import { AboutPanel } from "./about";
-import { AccountPanel } from "./account/AccountPanel";
 import { ConsentDialog } from "./ConsentDialog";
 import { GentlePromptPanel } from "./prompts";
 import { GrayscalePanel } from "./grayscale";
 import { UiHiderPanel } from "./ui-hider";
 import type { Settings } from "../lib/types";
+
+// Sync and its QR code library are rarely opened, so load them on demand.
+const AccountPanel = lazy(() => import("./account/AccountPanel").then((m) => ({ default: m.AccountPanel })));
 
 type Tab = "usage" | "focus" | "reducers" | "info";
 type ReducerPage = "website" | "hider" | "prompts" | "grayscale" | "sync" | null;
@@ -160,7 +162,11 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                     onChange={(hiddenElements) => commit({ ...draft, hiddenElements })}
                   />
                 )}
-                {reducerPage === "sync" && <AccountPanel />}
+                {reducerPage === "sync" && (
+                  <Suspense fallback={null}>
+                    <AccountPanel />
+                  </Suspense>
+                )}
               </>
             )}
             {tab === "info" && <AboutPanel />}

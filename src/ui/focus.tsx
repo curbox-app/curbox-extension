@@ -3,7 +3,8 @@ import { browser } from "#imports";
 import type { FocusGroup, FocusLogEntry, FocusMode, FocusSession } from "../lib/types";
 import { newFocusGroup } from "../lib/types";
 import { dateKey, dayLabel, lastNDays, msToClock, msToHuman } from "../lib/time";
-import { startSession, endSession } from "../core/focus";
+import { startSession } from "../core/focus";
+import { sendToBackground } from "../lib/messages";
 import { Segmented, Toggle, btnPrimary, btnOutline, btnGhost, inputCls } from "./components";
 import { useDraft } from "./useDraft";
 
@@ -32,7 +33,7 @@ function ActiveSession({ focus, compact }: { focus: FocusSession; compact?: bool
       <p className="font-display tnum mt-2 text-[56px] leading-none text-ink">{msToClock(remaining)}</p>
       <p className="label mt-3">{focus.name}</p>
       {focus.exitable ? (
-        <button onClick={() => void endSession()} className={`mt-8 w-full ${btnPrimary}`}>
+        <button onClick={() => void sendToBackground({ type: "endFocus" })} className={`mt-8 w-full ${btnPrimary}`}>
           End session
         </button>
       ) : (
@@ -465,7 +466,7 @@ export function FocusQuickControl({ focus, focusGroups }: { focus: FocusSession 
           <p className="font-display tnum mt-1 text-3xl leading-none">{msToClock(focus.endsAt - now)}</p>
         </div>
         {focus.exitable && (
-          <button onClick={() => void endSession()} className={btnGhost}>
+          <button onClick={() => void sendToBackground({ type: "endFocus" })} className={btnGhost}>
             End session
           </button>
         )}

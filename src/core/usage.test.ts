@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "@webext-core/fake-browser";
 import { createUsageTracker } from "./usage";
-import { get } from "../lib/storage";
+import { getUsage } from "../lib/storage";
 import { dateKey } from "../lib/time";
 
 const BASE = new Date(2026, 5, 15, 12, 0, 0).getTime();
@@ -24,7 +24,7 @@ function memorySession() {
 }
 
 async function domainMs(domain: string, key = dateKey(new Date())): Promise<number> {
-  const usage = await get("usage");
+  const usage = await getUsage([key]);
   return usage[key]?.[domain]?.ms ?? 0;
 }
 
@@ -45,7 +45,7 @@ describe("usage tracker", () => {
     advance(10_000);
     await tracker.persist();
     expect(await domainMs("youtube.com")).toBe(10_000);
-    const usage = await get("usage");
+    const usage = await getUsage([dateKey(new Date())]);
     expect(usage[dateKey(new Date())]["youtube.com"].paths["/watch?v=abc"]).toBe(10_000);
     expect(usage[dateKey(new Date())]["youtube.com"].pathHours?.["/watch?v=abc"]?.[12]).toBe(10_000);
   });
@@ -106,11 +106,34 @@ describe("usage tracker", () => {
     await tracker.startTracking(1, YT);
     advance(60_000);
     await tracker.persist();
-    const usage = await get("usage");
+    const usage = await getUsage(["2026-06-15", "2026-06-16"]);
     expect(usage["2026-06-15"]["youtube.com"].ms).toBe(30_000);
     expect(usage["2026-06-16"]["youtube.com"].ms).toBe(30_000);
     expect(usage["2026-06-15"]["youtube.com"].hours?.[23]).toBe(30_000);
     expect(usage["2026-06-16"]["youtube.com"].hours?.[0]).toBe(30_000);
+  });
+
+  it("writes one key per day and migrates the legacy single key", async () => {
+    const legacyDay = dateKey(new Date());
+    await fakeBrowser.storage.local.set({ usage: { [legacyDay]: { "a.com": { ms: 7_000, paths: { "": 7_000 } } } } });
+    const tracker = createUsageTracker(undefined);
+    await tracker.startTracking(1, YT);
+    advance(3_000);
+    await tracker.persist();
+    const stored = await fakeBrowser.storage.local.get(null);
+    expect(stored.usage).toBeUndefined();
+    const usage = await getUsage([legacyDay]);
+    expect(usage[legacyDay]["a.com"].ms).toBe(7_000);
+    expect(usage[legacyDay]["youtube.com"].ms).toBe(3_000);
+  });
+
+  it("drops days older than the retention window", async () => {
+    await fakeBrowser.storage.local.set({ "usage:2020-01-01": { "old.com": { ms: 1, paths: { "": 1 } } } });
+    const tracker = createUsageTracker(undefined);
+    await tracker.startTracking(1, YT);
+    advance(1_000);
+    await tracker.persist();
+    await vi.waitFor(async () => expect((await fakeBrowser.storage.local.get(null))["usage:2020-01-01"]).toBeUndefined());
   });
 
   it("discards a span longer than the suspend gap", async () => {

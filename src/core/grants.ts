@@ -1,4 +1,4 @@
-import { get, set, update } from "../lib/storage";
+import { get, update } from "../lib/storage";
 import type { SiteLocation } from "../lib/url";
 import { matchingOnOpenGroups } from "./blocker";
 import { compiledLists } from "./lists";
@@ -8,7 +8,9 @@ const DEFAULT_UNLOCK_MINUTES = 2;
 export async function pruneGrants(): Promise<void> {
   const now = Date.now();
   await update("grants", (grants) =>
-    Object.fromEntries(Object.entries(grants).filter(([, until]) => until > now)),
+    Object.values(grants).every((until) => until > now)
+      ? grants
+      : Object.fromEntries(Object.entries(grants).filter(([, until]) => until > now)),
   );
 }
 
@@ -54,16 +56,14 @@ export async function recordProceed(groupId: string, minutes?: number): Promise<
 // that group, and clears it only after leaving the group.
 export async function clearExitedOnOpenGrants(location: SiteLocation | null): Promise<void> {
   const settings = await get("settings");
-  const stillInside = new Set(location ? matchingOnOpenGroups(location, settings, await compiledLists()) : []);
   const ids = settings.groups.filter((group) => group.onEachOpen).map((group) => group.id);
-  const grants = await get("grants");
-  const next = { ...grants };
-  let changed = false;
-  for (const id of ids) {
-    if (!stillInside.has(id) && id in next) {
-      delete next[id];
-      changed = true;
-    }
-  }
-  if (changed) await set("grants", next);
+  if (ids.length === 0) return;
+  const stillInside = new Set(location ? matchingOnOpenGroups(location, settings, await compiledLists()) : []);
+  await update("grants", (grants) => {
+    const leaving = ids.filter((id) => !stillInside.has(id) && id in grants);
+    if (leaving.length === 0) return grants;
+    const next = { ...grants };
+    for (const id of leaving) delete next[id];
+    return next;
+  });
 }

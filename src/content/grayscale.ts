@@ -1,6 +1,8 @@
-import { get, watch } from "../lib/storage";
+import type { ContentScriptContext } from "#imports";
 import { shouldGrayscale } from "../core/grayscale";
 import { parseLocation } from "../lib/url";
+import type { SettingsFeed } from "./settings";
+import { injectStyle } from "./dom";
 
 const STYLE_ID = "curbox-grayscale";
 const CSS = `html { filter: grayscale(1) !important; transition: filter 0.6s cubic-bezier(0.22, 0.61, 0.36, 1); }
@@ -8,33 +10,22 @@ const CSS = `html { filter: grayscale(1) !important; transition: filter 0.6s cub
 
 // Runs in the page itself, so a gray site is gray from the first paint instead
 // of flashing color while the worker wakes up.
-export function createGrayscale(): { refresh: () => void } {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  function apply(on: boolean): void {
-    const existing = document.getElementById(STYLE_ID);
-    if (on && !existing) {
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent = CSS;
-      (document.head || document.documentElement).appendChild(style);
-    } else if (!on) existing?.remove();
-  }
+export function createGrayscale(ctx: ContentScriptContext, feed: SettingsFeed): { refresh: () => void } {
+  let timer: number | null = null;
 
   async function refresh(): Promise<void> {
+    const settings = await feed.current();
     const loc = parseLocation(location.href);
-    const settings = await get("settings");
-    apply(!!loc && shouldGrayscale(loc, settings));
+    injectStyle(STYLE_ID, !!loc && shouldGrayscale(loc, settings) ? CSS : "");
     // Recheck on the next minute so schedules start and stop on time.
     if (timer) clearTimeout(timer);
     timer = settings.grayscaleGroups.some((group) => group.enabled)
-      ? setTimeout(() => void refresh(), 60_000 - (Date.now() % 60_000))
+      ? ctx.setTimeout(() => void refresh(), 60_000 - (Date.now() % 60_000))
       : null;
   }
 
-  watch((changed) => {
-    if ("settings" in changed) void refresh();
-  });
+  ctx.onInvalidated(() => injectStyle(STYLE_ID, ""));
+  feed.subscribe(() => void refresh());
   void refresh();
 
   return { refresh: () => void refresh() };

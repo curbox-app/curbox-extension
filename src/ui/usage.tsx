@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEven
 import type { DateKey, Settings, UsageHistory } from "../lib/types";
 import { msToWidget, todayKey } from "../lib/time";
 import { allDomains, dayTotal, domainsForDays, type DomainRow } from "../lib/stats";
-import { ASCII_NAMES, asciiFor, asciiLabel } from "../lib/ascii";
 import { siteCategory, siteName } from "../lib/site";
 import {
   datesIn,
@@ -19,6 +18,22 @@ import {
 } from "../lib/usage-timeline";
 import { CSV_MODES, buildUsageCsv, csvFileName } from "../lib/usage-csv";
 import { EditorSheet, SheetActions, inputCls } from "./components";
+
+// The art is large and only decorates the header, so it loads after first paint.
+type AsciiModule = typeof import("../lib/ascii");
+const asciiModule = import("../lib/ascii");
+
+function useAsciiModule(): AsciiModule | null {
+  const [mod, setMod] = useState<AsciiModule | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void asciiModule.then((m) => alive && setMod(m));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return mod;
+}
 
 type UsagePrefs = Pick<Settings, "usageIgnoredSites" | "usageBackgroundArt">;
 type Sheet = "art" | "ignored" | "export" | null;
@@ -302,18 +317,20 @@ function Chevron({ dir }: { dir: "left" | "right" }) {
 }
 
 function ArtSheet({
+  ascii,
   selected,
   onPreview,
   onSave,
   onClose,
 }: {
+  ascii: AsciiModule;
   selected: string;
   onPreview: (name: string) => void;
   onSave: (name: string) => void;
   onClose: () => void;
 }) {
   const [choice, setChoice] = useState(selected);
-  const choices = [{ name: "", label: "Random" }, ...ASCII_NAMES.map((name) => ({ name, label: asciiLabel(name) }))];
+  const choices = [{ name: "", label: "Random" }, ...ascii.ASCII_NAMES.map((name) => ({ name, label: ascii.asciiLabel(name) }))];
   return (
     <EditorSheet
       title="Background art"
@@ -500,7 +517,12 @@ export function UsageView({
   const [ignoring, setIgnoring] = useState<string | null>(null);
   // What is on screen. Picking art previews it at once; cancelling restores the
   // saved choice, and saving keeps what was previewed, as on Android.
-  const [ascii, setAscii] = useState(() => asciiFor(prefs.usageBackgroundArt));
+  const asciiLib = useAsciiModule();
+  const [ascii, setAscii] = useState("");
+  useEffect(() => {
+    if (asciiLib) setAscii(asciiLib.asciiFor(prefs.usageBackgroundArt));
+    // Only on load: later changes come through the art sheet's own handlers.
+  }, [asciiLib]);
 
   const ignored = prefs.usageIgnoredSites;
 
@@ -577,12 +599,13 @@ export function UsageView({
           }}
         />
       )}
-      {sheet === "art" && (
+      {sheet === "art" && asciiLib && (
         <ArtSheet
+          ascii={asciiLib}
           selected={prefs.usageBackgroundArt}
-          onPreview={(name) => setAscii(asciiFor(name))}
+          onPreview={(name) => setAscii(asciiLib.asciiFor(name))}
           onClose={() => {
-            setAscii(asciiFor(prefs.usageBackgroundArt));
+            setAscii(asciiLib.asciiFor(prefs.usageBackgroundArt));
             setSheet(null);
           }}
           onSave={(usageBackgroundArt) => {

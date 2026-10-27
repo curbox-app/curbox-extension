@@ -1,6 +1,7 @@
 import type { BlockDecision } from "../lib/types";
 import { AdaptiveMathChallenge } from "../core/adaptive-math";
 import { msToHuman } from "../lib/time";
+import { lockScroll } from "./dom";
 
 const STYLE = `
 :host { all: initial; }
@@ -9,8 +10,9 @@ const STYLE = `
   inset: 0;
   z-index: 2147483647;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: #0f1115;
   color: #f3f4f8;
@@ -19,6 +21,7 @@ const STYLE = `
 }
 .curbox-root.visible { opacity: 1; }
 .card {
+  margin: auto;
   width: min(460px, 86vw);
   display: flex;
   flex-direction: column;
@@ -43,7 +46,8 @@ const STYLE = `
 .note { font-size: 14px; opacity: 0.6; margin: 0; }
 input, textarea {
   font-family: inherit;
-  font-size: 15px;
+  font-size: 16px;
+  box-sizing: border-box;
   width: 100%;
   max-width: 340px;
   background: transparent;
@@ -80,6 +84,18 @@ function makePrimary(label: string, onClick: () => void, disabled = false): HTML
   return button;
 }
 
+// Phone keyboards capitalize, autocorrect and add spaces on their own, which
+// would make typed answers fail to match.
+function makeInput<K extends "input" | "textarea">(tag: K, placeholder: string): HTMLElementTagNameMap[K] {
+  const input = document.createElement(tag);
+  input.placeholder = placeholder;
+  input.spellcheck = false;
+  for (const [name, value] of [["autocomplete", "off"], ["autocapitalize", "off"], ["autocorrect", "off"]]) {
+    input.setAttribute(name, value);
+  }
+  return input;
+}
+
 function makeNote(text: string): HTMLParagraphElement {
   const note = document.createElement("p");
   note.className = "note";
@@ -106,6 +122,12 @@ export function createOverlay(): Overlay {
   // any in-progress countdown or typed input. Identical decision => leave it be.
   let shownKey: string | null = null;
   const timers = new Set<ReturnType<typeof setInterval>>();
+
+  // A blocked video must not keep playing behind the pause, or start again
+  // when the page autoplays the next one.
+  const stopMedia = (event: Event) => {
+    if (event.target instanceof HTMLMediaElement) event.target.pause();
+  };
 
   function mount(): ShadowRoot {
     host = document.createElement("div");
@@ -143,7 +165,9 @@ export function createOverlay(): Overlay {
     if (host) hide();
     shownKey = key;
     const shadow = mount();
-    document.documentElement.style.overflow = "hidden";
+    lockScroll(true);
+    document.querySelectorAll("video, audio").forEach((media) => (media as HTMLMediaElement).pause());
+    document.addEventListener("play", stopMedia, true);
 
     const root = document.createElement("div");
     root.className = "curbox-root";
@@ -223,9 +247,7 @@ export function createOverlay(): Overlay {
       const sentence = document.createElement("p");
       sentence.className = "sentence";
       sentence.textContent = warning.sentence;
-      const input = document.createElement("input");
-      input.setAttribute("autocomplete", "off");
-      input.placeholder = "Type it here";
+      const input = makeInput("input", "Type it here");
       // Match Android's typing challenge: the sentence must be entered, not
       // pasted or dragged in from the target text.
       input.addEventListener("paste", (event) => event.preventDefault());
@@ -240,10 +262,8 @@ export function createOverlay(): Overlay {
     }
 
     if (warning?.challenge === "effort" && warning.effortType === "intent") {
-      const input = document.createElement("textarea");
+      const input = makeInput("textarea", "Why do you want to continue?");
       input.rows = 3;
-      input.setAttribute("autocomplete", "off");
-      input.placeholder = "Why do you want to continue?";
       const minimum = Math.max(1, warning.minIntentLength);
       const note = makeNote("");
       const button = makePrimary("Continue", () => !button.disabled && proceed(), true);
@@ -268,11 +288,11 @@ export function createOverlay(): Overlay {
     // dynamic lets me choose how long right here, then asks again next time.
     const minutes = Math.max(1, warning?.unlockMinutes ?? 15);
     if (decision.reason !== "on-open" && warning?.waitType === "dynamic") {
-      const input = document.createElement("input");
+      const input = makeInput("input", "");
       input.type = "number";
+      input.inputMode = "numeric";
       input.min = "1";
       input.value = String(minutes);
-      input.setAttribute("autocomplete", "off");
       const chosen = () => Math.max(1, Math.floor(Number(input.value)) || 0);
       const button = makePrimary(`Unlock for ${chosen()} min`, () => proceed(chosen()));
       input.oninput = () => (button.textContent = `Unlock for ${chosen()} min`);
@@ -286,7 +306,10 @@ export function createOverlay(): Overlay {
   function hide() {
     for (const id of timers) clearInterval(id);
     timers.clear();
-    document.documentElement.style.overflow = "";
+    if (host) {
+      lockScroll(false);
+      document.removeEventListener("play", stopMedia, true);
+    }
     host?.remove();
     host = null;
     shownKey = null;
@@ -305,10 +328,9 @@ function renderMathChallenge(
   const progress = makeNote("");
   const problem = document.createElement("p");
   problem.className = "problem";
-  const input = document.createElement("input");
+  const input = makeInput("input", "Answer");
   input.inputMode = "decimal";
-  input.placeholder = "Answer";
-  input.setAttribute("autocomplete", "off");
+  input.enterKeyHint = "done";
   const feedback = makeNote("");
   const button = makePrimary("Check answer", submit);
 
@@ -337,7 +359,7 @@ function renderMathChallenge(
 }
 
 function normalizeLines(value: string): string {
-  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  return value.replace(/\r\n?/g, "\n").trim();
 }
 
 // Keep keyboard focus inside the overlay and let Escape lead somewhere calmer.

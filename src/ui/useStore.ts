@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { browser } from "#imports";
-import { get, set, watch, DEFAULT_SETTINGS } from "../lib/storage";
+import { get, getUsage, isUsageKey, set, usageDay, watch, DEFAULT_SETTINGS } from "../lib/storage";
 import { mergeUsage } from "../lib/sync/merge";
-import type { FocusLogEntry, FocusSession, Settings, UsageHistory } from "../lib/types";
+import { lastNDays } from "../lib/time";
+import { RETENTION_DAYS } from "../lib/usage-data";
+import type { DayUsage, FocusLogEntry, FocusSession, Settings, UsageHistory } from "../lib/types";
 
 const REMOTE_USAGE_KEY = "sync.remoteUsageView";
+const WATCHED = new Set(["settings", "focus", "focusLog", "termsAccepted", REMOTE_USAGE_KEY]);
 
 async function loadRemoteUsage(): Promise<UsageHistory> {
   const res = await browser.storage.local.get(REMOTE_USAGE_KEY);
@@ -37,31 +40,41 @@ export function useCurbox() {
 
     const load = async () => {
       const [usage, settings, focus, focusLog, termsAccepted, remote] = await Promise.all([
-        get("usage"),
+        getUsage(lastNDays(RETENTION_DAYS + 1)),
         get("settings"),
         get("focus"),
         get("focusLog"),
         get("termsAccepted"),
         loadRemoteUsage(),
       ]);
-      localUsage = usage;
+      // Days written while loading arrive through the watcher; keep the newer copy.
+      localUsage = { ...usage, ...localUsage };
       remoteUsage = remote;
-      if (alive) setState({ usage: mergeUsage(usage, remote), settings, focus, focusLog, termsAccepted, ready: true });
+      if (alive) setState({ usage: mergeUsage(localUsage, remoteUsage), settings, focus, focusLog, termsAccepted, ready: true });
     };
     void load();
     const stop = watch((changed) => {
-      if ("usage" in changed) localUsage = changed.usage ?? {};
+      const keys = Object.keys(changed);
+      const usageKeys = keys.filter(isUsageKey);
+      if (usageKeys.length === 0 && !keys.some((key) => WATCHED.has(key))) return;
+      if (usageKeys.length > 0) {
+        localUsage = { ...localUsage };
+        for (const key of usageKeys) {
+          const day = changed[key] as DayUsage | undefined;
+          if (day) localUsage[usageDay(key)] = day;
+          else delete localUsage[usageDay(key)];
+        }
+      }
       if (REMOTE_USAGE_KEY in changed) {
-        remoteUsage = (changed as Record<string, UsageHistory>)[REMOTE_USAGE_KEY] ?? {};
+        remoteUsage = (changed[REMOTE_USAGE_KEY] as UsageHistory | undefined) ?? {};
       }
       setState((prev) => ({
-        usage:
-          "usage" in changed || REMOTE_USAGE_KEY in changed ? mergeUsage(localUsage, remoteUsage) : prev.usage,
+        usage: usageKeys.length > 0 || REMOTE_USAGE_KEY in changed ? mergeUsage(localUsage, remoteUsage) : prev.usage,
         settings: changed.settings ?? prev.settings,
         focus: "focus" in changed ? (changed.focus ?? null) : prev.focus,
         focusLog: changed.focusLog ?? prev.focusLog,
         termsAccepted: changed.termsAccepted ?? prev.termsAccepted,
-        ready: true,
+        ready: prev.ready,
       }));
     });
     return () => {

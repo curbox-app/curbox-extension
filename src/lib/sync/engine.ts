@@ -15,8 +15,9 @@ import {
   buildPairingPayload,
   parsePairingPayload,
 } from "../crypto";
-import { dateKey } from "../time";
-import { get, isApplyingRemote, setFromRemote, watch } from "../storage";
+import { dateKey, lastNDays } from "../time";
+import { RETENTION_DAYS } from "../usage-data";
+import { get, getUsage, isApplyingRemote, isUsageKey, setFromRemote, watch } from "../storage";
 import type { FocusGroup, FocusMode, FocusSession, Settings, UsageHistory } from "../types";
 import { normalizeSettings } from "../types";
 import {
@@ -124,7 +125,7 @@ export class SyncEngine {
     watch((changed) => {
       if (isApplyingRemote()) return;
       if ("settings" in changed) this.scheduleConfigPush();
-      if ("usage" in changed) this.scheduleUsagePush();
+      if (Object.keys(changed).some(isUsageKey)) this.scheduleUsagePush();
       if ("focus" in changed) void this.pushFocus().catch((err) => this.recordError(err));
     });
   }
@@ -803,7 +804,7 @@ export class SyncEngine {
     if (!this.billing.entitled) return;
     if (!this.preferences.usageStats) return;
     if (!this.dek || !this.userId || !this.deviceId) return;
-    const usage = await get("usage");
+    const usage = await getUsage(lastNDays(RETENTION_DAYS + 1));
     const retainedDates = Object.keys(usage).filter((date) => this.isRetainedUsageDate(date)).sort();
     for (const date of retainedDates) {
       const domains: UsageWebPayload["domains"] = {};

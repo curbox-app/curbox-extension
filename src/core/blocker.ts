@@ -115,6 +115,7 @@ function sumGroupUsage(
   const endDay = new Date(Math.max(window.start, window.end - 1));
   const keys = dateKey(startDay) === dateKey(endDay) ? [dateKey(startDay)] : [dateKey(startDay), dateKey(endDay)];
   for (const key of keys) {
+    const [year, month, day] = key.split("-").map(Number);
     for (const [domain, domainUsage] of Object.entries(usage[key] ?? {})) {
       for (const [path, ms] of Object.entries(domainUsage.paths)) {
         if (!targetMatches({ domain, path }, group, lists)) continue;
@@ -126,7 +127,6 @@ function sumGroupUsage(
         for (let hour = 0; hour < 24; hour++) {
           const bucketMs = buckets[hour] ?? 0;
           if (bucketMs <= 0) continue;
-          const [year, month, day] = key.split("-").map(Number);
           const bucketStart = new Date(year, month - 1, day, hour).getTime();
           const bucketEnd = new Date(year, month - 1, day, hour + 1).getTime();
           const overlap = Math.max(0, Math.min(window.end, bucketEnd) - Math.max(window.start, bucketStart));

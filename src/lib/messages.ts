@@ -1,17 +1,17 @@
 import { browser } from "#imports";
 import type { PromptValues } from "./prompt";
-import type { BlockDecision, GentlePromptConfig } from "./types";
+import type { BlockDecision, GentlePromptConfig, Settings } from "./types";
 
 export type ContentMessage =
   | { type: "visibility"; visible: boolean }
-  | { type: "navigated"; url: string }
+  | { type: "navigated"; url: string; visible: boolean }
   | { type: "proceed"; groupId: string; domain: string; minutes?: number }
   | { type: "endFocus" }
   | { type: "prompt"; url: string };
 
 export type PromptReply = { config: GentlePromptConfig; values: PromptValues } | null;
 
-export type BgMessage = { type: "evaluate"; decision: BlockDecision };
+export type BgMessage = { type: "evaluate"; decision: BlockDecision } | { type: "settings"; settings: Settings };
 
 export function sendToBackground<R = unknown>(msg: ContentMessage): Promise<R> {
   return browser.runtime.sendMessage(msg) as Promise<R>;
@@ -35,6 +35,7 @@ function injectContentScript(tabId: number): Promise<unknown> {
 
 export function sendToTab(tabId: number, msg: BgMessage): void {
   browser.tabs.sendMessage(tabId, msg).catch(() => {
+    if (msg.type !== "evaluate") return;
     // Nobody answered: the tab was open before the extension loaded (or the
     // worker reloaded and orphaned its content script), so a focus session or
     // block that starts while sitting on the page never reaches it. Inject the

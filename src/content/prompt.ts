@@ -1,9 +1,10 @@
-import { get, watch } from "../lib/storage";
+import type { ContentScriptContext } from "#imports";
 import { groupMatches } from "../lib/match";
 import { formatPrompt, promptLook } from "../lib/prompt";
 import { sendToBackground, type PromptReply } from "../lib/messages";
 import { parseLocation } from "../lib/url";
 import type { GentlePromptConfig } from "../lib/types";
+import type { SettingsFeed } from "./settings";
 
 const STYLE = `
 :host { all: initial; }
@@ -40,14 +41,15 @@ function place(el: HTMLElement, config: GentlePromptConfig): void {
   el.style.top = `${clamp(innerHeight * config.positionY - height / 2, innerHeight - height)}px`;
 }
 
-export function createPrompt(): { refresh: () => void } {
+export function createPrompt(ctx: ContentScriptContext, feed: SettingsFeed): { refresh: () => void } {
   let host: HTMLDivElement | null = null;
   let box: HTMLDivElement | null = null;
   let reply: PromptReply = null;
   let wanted = false;
   let sessionStart = 0;
   let ticks = 0;
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: number | null = null;
+  let shownText = "";
 
   function mount(): HTMLDivElement {
     host = document.createElement("div");
@@ -65,11 +67,15 @@ export function createPrompt(): { refresh: () => void } {
     return box;
   }
 
-  function render(): void {
+  function render(restyle = false): void {
     if (!reply) return;
+    const fresh = !box;
     const el = box ?? mount();
-    Object.assign(el.style, promptLook(reply.config));
-    el.textContent = formatPrompt(reply.config.message, reply.values, Date.now() - sessionStart);
+    if (fresh || restyle) Object.assign(el.style, promptLook(reply.config));
+    const text = formatPrompt(reply.config.message, reply.values, Date.now() - sessionStart);
+    // Measuring forces layout, so only re-place when the text actually moved.
+    if (!fresh && !restyle && text === shownText) return;
+    el.textContent = shownText = text;
     place(el, reply.config);
   }
 
@@ -78,25 +84,28 @@ export function createPrompt(): { refresh: () => void } {
     host = null;
     box = null;
     reply = null;
+    shownText = "";
     sessionStart = 0;
     if (timer) clearInterval(timer);
     timer = null;
   }
 
   async function fetchValues(): Promise<void> {
-    const next = await sendToBackground<PromptReply>({ type: "prompt", url: location.href }).catch(() => null);
-    if (!wanted || document.visibilityState !== "visible") return;
+    // A failed call (worker restarting) keeps what is shown and retries on the
+    // next refresh; only a real "no prompt here" answer hides it.
+    const next = await sendToBackground<PromptReply>({ type: "prompt", url: location.href }).catch(() => undefined);
+    if (!wanted || document.visibilityState !== "visible" || next === undefined) return;
     if (!next) return hide();
     reply = next;
     if (!sessionStart) sessionStart = Date.now();
-    render();
+    render(true);
   }
 
   function start(): void {
     if (timer) return;
     ticks = 0;
     void fetchValues();
-    timer = setInterval(() => {
+    timer = ctx.setInterval(() => {
       ticks += 1;
       if (ticks % REFRESH_EVERY_S === 0) void fetchValues();
       else render();
@@ -106,7 +115,7 @@ export function createPrompt(): { refresh: () => void } {
   // Cheap local check first, so pages with no prompt never wake the worker.
   async function refresh(): Promise<void> {
     const loc = parseLocation(location.href);
-    const config = (await get("settings")).gentlePrompt;
+    const config = (await feed.current()).gentlePrompt;
     wanted = !!loc && config.enabled && groupMatches(loc, config.sites);
     if (wanted && document.visibilityState === "visible") {
       if (timer) void fetchValues();
@@ -114,11 +123,10 @@ export function createPrompt(): { refresh: () => void } {
     } else hide();
   }
 
-  document.addEventListener("visibilitychange", () => void refresh());
-  addEventListener("resize", () => box && reply && place(box, reply.config));
-  watch((changed) => {
-    if ("settings" in changed) void refresh();
-  });
+  ctx.addEventListener(document, "visibilitychange", () => void refresh());
+  ctx.addEventListener(window, "resize", () => box && reply && place(box, reply.config));
+  ctx.onInvalidated(hide);
+  feed.subscribe(() => void refresh());
   void refresh();
 
   return { refresh: () => void refresh() };
