@@ -5,7 +5,7 @@ import { UsageView } from "./usage";
 import { GroupManager, type ScreenBack } from "./blocker";
 import { FocusPanel } from "./focus";
 import { AboutPanel } from "./about";
-import { ConsentDialog } from "./ConsentDialog";
+import { Onboarding } from "./onboarding";
 import { GentlePromptPanel } from "./prompts";
 import { GrayscalePanel } from "./grayscale";
 import { UiHiderPanel } from "./ui-hider";
@@ -60,7 +60,7 @@ function NavIcon({ tab }: { tab: Tab }) {
 
 export function AppShell({ variant }: { variant: "popup" | "page" }) {
   const popup = variant === "popup";
-  const { usage, settings, focus, focusLog, ready, termsAccepted, acceptTerms, saveSettings } = useCurbox();
+  const { usage, settings, focus, focusLog, ready, termsAccepted, onboardingPending, acceptTerms, finishOnboarding, saveSettings } = useCurbox();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>("usage");
   const [reducerPage, setReducerPage] = useState<ReducerPage>(null);
@@ -82,10 +82,17 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
     );
   }
 
-  if (!termsAccepted) {
+  if (!termsAccepted || onboardingPending) {
     return (
-      <div className={`${frame} items-center justify-center`}>
-        <ConsentDialog onAccept={() => void acceptTerms()} />
+      <div className={frame}>
+        <Onboarding
+          termsAccepted={termsAccepted}
+          onAcceptTerms={() => void acceptTerms()}
+          onFinish={(group) => {
+            const save = group ? saveSettings({ ...draft, groups: [...draft.groups, group] }) : Promise.resolve();
+            void save.then(finishOnboarding);
+          }}
+        />
       </div>
     );
   }

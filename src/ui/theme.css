@@ -194,6 +194,16 @@ html.curbox-popup #root {
 }
 .tab-enter { animation: tabIn 0.42s var(--ease-calm) both; }
 
+/* Android onboarding's BlurFadePageTransformer: the next step fades in from a blur. */
+@keyframes onboardIn {
+  from { opacity: 0; filter: blur(20px); transform: scale(0.95); }
+  to { opacity: 1; filter: none; transform: none; }
+}
+.onboard-enter { animation: onboardIn 0.75s ease-in-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .onboard-enter { animation: none; }
+}
+
 .tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;

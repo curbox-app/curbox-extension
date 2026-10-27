@@ -7,7 +7,11 @@ import { RETENTION_DAYS } from "../lib/usage-data";
 import type { DayUsage, FocusLogEntry, FocusSession, Settings, UsageHistory } from "../lib/types";
 
 const REMOTE_USAGE_KEY = "sync.remoteUsageView";
-const WATCHED = new Set(["settings", "focus", "focusLog", "termsAccepted", REMOTE_USAGE_KEY]);
+// Set when the terms are accepted and cleared when onboarding ends, so closing
+// the window midway brings the remaining steps back. Older installs never set
+// it, so people who already agreed are not walked through it again.
+const ONBOARDING_KEY = "ui.onboardingPending";
+const WATCHED = new Set(["settings", "focus", "focusLog", "termsAccepted", REMOTE_USAGE_KEY, ONBOARDING_KEY]);
 
 async function loadRemoteUsage(): Promise<UsageHistory> {
   const res = await browser.storage.local.get(REMOTE_USAGE_KEY);
@@ -20,6 +24,7 @@ export interface CurboxState {
   focus: FocusSession | null;
   focusLog: FocusLogEntry[];
   termsAccepted: boolean;
+  onboardingPending: boolean;
   ready: boolean;
 }
 
@@ -30,6 +35,7 @@ export function useCurbox() {
     focus: null,
     focusLog: [],
     termsAccepted: false,
+    onboardingPending: false,
     ready: false,
   });
 
@@ -39,18 +45,20 @@ export function useCurbox() {
     let remoteUsage: UsageHistory = {};
 
     const load = async () => {
-      const [usage, settings, focus, focusLog, termsAccepted, remote] = await Promise.all([
+      const [usage, settings, focus, focusLog, termsAccepted, remote, onboarding] = await Promise.all([
         getUsage(lastNDays(RETENTION_DAYS + 1)),
         get("settings"),
         get("focus"),
         get("focusLog"),
         get("termsAccepted"),
         loadRemoteUsage(),
+        browser.storage.local.get(ONBOARDING_KEY),
       ]);
       // Days written while loading arrive through the watcher; keep the newer copy.
       localUsage = { ...usage, ...localUsage };
       remoteUsage = remote;
-      if (alive) setState({ usage: mergeUsage(localUsage, remoteUsage), settings, focus, focusLog, termsAccepted, ready: true });
+      const onboardingPending = onboarding[ONBOARDING_KEY] === true;
+      if (alive) setState({ usage: mergeUsage(localUsage, remoteUsage), settings, focus, focusLog, termsAccepted, onboardingPending, ready: true });
     };
     void load();
     const stop = watch((changed) => {
@@ -74,6 +82,7 @@ export function useCurbox() {
         focus: "focus" in changed ? (changed.focus ?? null) : prev.focus,
         focusLog: changed.focusLog ?? prev.focusLog,
         termsAccepted: changed.termsAccepted ?? prev.termsAccepted,
+        onboardingPending: ONBOARDING_KEY in changed ? changed[ONBOARDING_KEY] === true : prev.onboardingPending,
         ready: prev.ready,
       }));
     });
@@ -84,7 +93,8 @@ export function useCurbox() {
   }, []);
 
   const saveSettings = (settings: Settings) => set("settings", settings);
-  const acceptTerms = () => set("termsAccepted", true);
+  const acceptTerms = () => browser.storage.local.set({ termsAccepted: true, [ONBOARDING_KEY]: true });
+  const finishOnboarding = () => browser.storage.local.remove(ONBOARDING_KEY);
 
-  return { ...state, saveSettings, acceptTerms };
+  return { ...state, saveSettings, acceptTerms, finishOnboarding };
 }
