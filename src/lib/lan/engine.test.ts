@@ -158,4 +158,30 @@ describe("lan engine", () => {
     expect(status.lastOkAt).toBeGreaterThan(0);
     expect(status.pairingLink).toBeNull();
   });
+
+  it("adds a new network by scanning while still paired", async () => {
+    const lan = new LanSync();
+    await lan.pair("192.168.1.20", CODE);
+    // The office WiFi is new: the phone is on 10.0.0.42 and only takes a freshly scanned code.
+    let office: ReturnType<typeof fakePhone> | null = null;
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      if (!url.startsWith("http://10.0.0.42:")) throw new TypeError("unreachable");
+      if (url.endsWith("/v1/hello")) return new Response('{"app":"curbox-sync","proto":2}');
+      if (!office) return new Response("", { status: 401 });
+      return office.fetchMock(url, init);
+    });
+    await lan.startPairing("10.0.0.9", true);
+    const status = await lan.status();
+    expect(status.paired).toBe(true);
+    expect(status.adding).toBe(true);
+    const code = new URL(status.pairingLink!.replace("curboxsync://", "http://")).searchParams.get("c")!;
+    office = fakePhone(await deriveLanKey(code));
+    office.net.id = "10.0.0.0/24@10.0.0.1";
+    office.net.label = "Office";
+    for (let i = 0; i < 50 && (await lan.status()).address !== "10.0.0.42:47621"; i++) await new Promise((r) => setTimeout(r, 100));
+    const after = await lan.status();
+    expect(after.address).toBe("10.0.0.42:47621");
+    expect(after.adding).toBe(false);
+    expect(after.places.map((p) => p.label).sort()).toEqual(["Home", "Office"]);
+  });
 });

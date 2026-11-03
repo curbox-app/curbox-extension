@@ -75,16 +75,23 @@ export function LanPanel() {
 
   const paired = status?.paired;
   const link = status?.pairingLink ?? null;
+  const [hint, setHint] = useState<string | null | undefined>(undefined);
+
+  // This computer's address tells the background which network it is on now.
+  useEffect(() => {
+    void localAddressHint().then((h) => {
+      setHint(h);
+      if (h) void send({ type: "lan:hint", hint: h });
+    });
+  }, []);
+
+  const addNetwork = () => void run({ type: "lan:startPairing", hint: hint ?? null, adding: true });
 
   // While unpaired, keep a code on screen and the background search running.
   useEffect(() => {
-    if (paired !== false) return;
-    let alive = true;
-    void localAddressHint().then((hint) => alive && void send({ type: "lan:startPairing", hint }).then((r) => setStatus(r.status)));
-    return () => {
-      alive = false;
-    };
-  }, [paired]);
+    if (paired !== false || hint === undefined) return;
+    void send({ type: "lan:startPairing", hint }).then((r) => setStatus(r.status));
+  }, [paired, hint]);
 
   useEffect(() => {
     if (!link) return setQr(null);
@@ -152,6 +159,23 @@ export function LanPanel() {
   return (
     <div className="flex flex-col gap-5">
       {header}
+      {status.adding && (
+        <div className="card flex flex-col items-center gap-4 p-6 text-center">
+          <p className="font-display text-3xl leading-none">Add this network</p>
+          <p className="text-sm text-muted">
+            Join this WiFi on your phone, open Curbox Sync and tap Scan browser code. Your other networks stay saved.
+          </p>
+          {qr ? (
+            <img src={qr} alt="Code to add this network in Curbox Sync" className="w-56 rounded-xl bg-white p-2" />
+          ) : (
+            <div className="h-56 w-56 rounded-xl bg-surface-2" />
+          )}
+          <p className="text-sm text-ink">Looking for your phone on this WiFi...</p>
+          <button className={btnGhost} onClick={() => void run({ type: "lan:cancelPairing" })}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="card flex flex-col gap-3 p-6">
         <p className="font-display text-3xl leading-none">{status.reachable ? "In step" : "Looking for your phone"}</p>
         {status.lastOkAt > 0 && <p className="text-sm text-ink">Last synced {ago(status.lastOkAt)}</p>}
@@ -162,7 +186,7 @@ export function LanPanel() {
           </p>
         )}
         {(error ?? status.message) && <p className="text-sm text-muted">{error ?? status.message}</p>}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             className={btnOutline}
             disabled={busy}
@@ -176,6 +200,11 @@ export function LanPanel() {
           >
             {busy ? "Syncing..." : synced ? "Synced" : "Sync now"}
           </button>
+          {!status.adding && (
+            <button className={status.reachable ? btnGhost : btnOutline} disabled={busy} onClick={addNetwork}>
+              Add this network
+            </button>
+          )}
           <button className={btnGhost} disabled={busy} onClick={() => void run({ type: "lan:unpair" })}>
             Unpair
           </button>
@@ -203,8 +232,8 @@ export function LanPanel() {
         <p className="text-sm text-muted">Site time shared with your phone {ago(status.usageSentAt)}.</p>
       )}
       <p className="text-xs text-faint">
-        Focus groups are matched by name, so give a group the same name on both devices. When you move to another WiFi, I find
-        your phone again on its own. Rename networks in Curbox Sync.
+        Focus groups are matched by name, so give a group the same name on both devices. On a saved WiFi I find your phone on
+        my own. On a new one, tap Add this network. Rename networks in Curbox Sync.
       </p>
     </div>
   );

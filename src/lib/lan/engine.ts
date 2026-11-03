@@ -22,6 +22,7 @@ const K_LAST_ADDRESS = "lan.lastAddress";
 const K_PLACES = "lan.places";
 const K_USAGE = "lan.usage";
 const K_CLIENT = "lan.clientId";
+const K_HINT = "lan.hint";
 const ROAM_REST_MS = 5 * 60_000;
 const USAGE_EVERY_MS = 60_000;
 const PAIRING_MS = 10 * 60_000;
@@ -31,6 +32,8 @@ interface PendingPairing {
   key: string;
   startedAt: number;
   hint: string | null;
+  /** Already paired: this code adds the network the browser is on now. */
+  adding?: boolean;
 }
 const WAIT_MS = 25_000;
 
@@ -86,6 +89,8 @@ export interface LanStatus {
   message: string;
   /** While waiting for the phone to scan: the link to show as a QR code. */
   pairingLink: string | null;
+  /** The code on screen adds a network to an existing pairing. */
+  adding: boolean;
   /** Networks this browser has met the phone on, newest first. */
   places: LanPlace[];
   /** The network the phone was last seen on. */
@@ -96,7 +101,8 @@ export interface LanStatus {
 export type LanRequest =
   | { type: "lan:status" }
   | { type: "lan:pair"; address: string; code: string }
-  | { type: "lan:startPairing"; hint: string | null }
+  | { type: "lan:startPairing"; hint: string | null; adding?: boolean }
+  | { type: "lan:hint"; hint: string | null }
   | { type: "lan:cancelPairing" }
   | { type: "lan:unpair" }
   | { type: "lan:syncNow" }
@@ -218,8 +224,9 @@ export class LanSync {
     const [config, state, pending, places, usage] = await Promise.all([
       this.config(), this.state(), this.pending(), this.places(), read<UsageSync | null>(K_USAGE, null),
     ]);
+    const showing = pending && (!config || pending.adding) ? pending : null;
     // The worker may have restarted while the code was on screen; keep looking.
-    if (!config && pending) void this.discover();
+    if (showing) void this.discover();
     return {
       paired: config !== null,
       address: config?.address ?? "",
@@ -227,7 +234,8 @@ export class LanSync {
       lastOkAt: state.lastOkAt,
       phone: state.phone,
       message: state.message || state.note || "",
-      pairingLink: !config && pending ? pairingLink(pending.code) : null,
+      pairingLink: showing ? pairingLink(showing.code) : null,
+      adding: !!(config && showing),
       places,
       placeId: places.find((p) => p.address === config?.address)?.id ?? "",
       usageSentAt: config && usage?.key === config.key ? usage.sentAt : 0,
@@ -288,7 +296,8 @@ export class LanSync {
       const found = await Promise.any(saved.map(tryAt)).catch(() => null);
       if (found) return await this.moveTo(found);
     }
-    const subnets = candidateSubnets(config.address, ...places.map((p) => p.address));
+    const hint = await read<string | null>(K_HINT, null);
+    const subnets = candidateSubnets(hint, config.address, ...places.map((p) => p.address));
     const subnet = subnets[this.roamRound % subnets.length];
     this.roamRound++;
     if (this.roamRound % subnets.length === 0) this.roamRestUntil = Date.now() + ROAM_REST_MS;
@@ -298,6 +307,16 @@ export class LanSync {
       if (found) return await this.moveTo(found);
     }
     return null;
+  }
+
+  /** This computer's own address, from the panel. A new range means a new network, so search right away. */
+  async setHint(hint: string | null): Promise<void> {
+    if (!hint) return;
+    const old = await read<string | null>(K_HINT, null);
+    if (old === hint) return;
+    await write(K_HINT, hint);
+    this.roamRound = 0;
+    this.roamRestUntil = 0;
   }
 
   private async moveTo(config: LanConfig): Promise<LanConfig> {
@@ -369,11 +388,13 @@ export class LanSync {
    * Shows a code for the phone to scan, then looks for the phone on the WiFi.
    * The browser cannot be reached by the phone, so it has to do the finding.
    */
-  async startPairing(hint: string | null): Promise<void> {
+  async startPairing(hint: string | null, adding = false): Promise<void> {
+    if (hint) await this.setHint(hint);
+    adding = adding && !!(await this.config());
     let pending = await this.pending();
-    if (!pending) {
+    if (!pending || !!pending.adding !== adding) {
       const code = newPairingCode();
-      pending = { code, key: toBase64Url(await deriveLanKey(code)), startedAt: Date.now(), hint };
+      pending = { code, key: toBase64Url(await deriveLanKey(code)), startedAt: Date.now(), hint, adding };
     } else if (hint) {
       pending = { ...pending, hint };
     }
@@ -395,10 +416,21 @@ export class LanSync {
       let sweep = 0;
       for (;;) {
         const pending = await this.pending();
-        if (!pending || (await this.config())) return;
+        if (!pending) return;
+        const paired = await this.config();
+        if (paired && !pending.adding) return;
         for (const address of phones) {
+          // A phone that already knows this browser needs no scan at all.
+          if (paired) {
+            const moved = { ...paired, address };
+            if (await this.call(moved, { op: "state" }, 2_500).then(() => true, () => false)) {
+              await this.moveTo(moved);
+              await browser.storage.local.remove(K_PENDING);
+              return;
+            }
+          }
           try {
-            await this.adopt({ address, key: pending.key });
+            await this.adopt({ address, key: pending.key }, !!paired);
             await browser.storage.local.remove(K_PENDING);
             return;
           } catch {
@@ -406,8 +438,9 @@ export class LanSync {
           }
         }
         const lastAddress = await read<string | null>(K_LAST_ADDRESS, null);
-        const subnets = candidateSubnets(pending.hint, lastAddress);
-        const likely = Math.max(1, Number(!!pending.hint) + Number(!!lastAddress));
+        const hint = pending.hint ?? (await read<string | null>(K_HINT, null));
+        const subnets = candidateSubnets(hint, lastAddress);
+        const likely = Math.max(1, Number(!!hint) + Number(!!lastAddress));
         // The likeliest ranges come back every other round, so a phone that turns
         // sync on late is still found quickly. Once found, sweep only now and then.
         const subnet = sweep % 2 === 0 ? subnets[(sweep / 2) % likely] : subnets[likely + ((sweep - 1) / 2) % (subnets.length - likely)];
@@ -423,14 +456,16 @@ export class LanSync {
   }
 
   /** Confirms the phone opens our sealed requests, then saves it as the paired phone. */
-  private async adopt(config: LanConfig): Promise<void> {
+  private async adopt(config: LanConfig, keepState = false): Promise<void> {
     const first = await this.call(config, { op: "state" }, 4_000);
     this.pollToken++;
     await write(K_CONFIG, config);
     await write(K_LAST_ADDRESS, config.address);
     await browser.storage.local.remove(K_PENDING);
     // The phone already answered, so pairing worked even if the first sync does not.
-    await write(K_STATE, { ...EMPTY_STATE, lastOkAt: Date.now(), phone: first.phone });
+    // Adding a network keeps the agreed focus view, so nothing is undone.
+    const base = keepState ? await this.state() : EMPTY_STATE;
+    await write(K_STATE, { ...base, lastOkAt: Date.now(), phone: first.phone, message: "" });
     this.startPolling();
     await this.syncNow().catch(() => undefined);
   }

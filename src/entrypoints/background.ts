@@ -35,7 +35,11 @@ const lan = getLanSync();
 async function handleLan(req: LanRequest): Promise<LanResponse> {
   try {
     if (req.type === "lan:pair") await lan.pair(req.address, req.code);
-    else if (req.type === "lan:startPairing") await lan.startPairing(req.hint);
+    else if (req.type === "lan:startPairing") await lan.startPairing(req.hint, req.adding);
+    else if (req.type === "lan:hint") {
+      await lan.setHint(req.hint);
+      void lan.syncNow().catch(() => undefined);
+    }
     else if (req.type === "lan:cancelPairing") await lan.cancelPairing();
     else if (req.type === "lan:unpair") await lan.unpair();
     else if (req.type === "lan:syncNow") await lan.syncNow();
