@@ -1,6 +1,6 @@
-# Firefox test release
+# Firefox release
 
-This is the checklist for shipping a test build of Curbox Browser to Firefox users through addons.mozilla.org (AMO). A test release is signed by Mozilla but **unlisted**, so only people with the file can install it. When you are ready to go public, upload the same build as a **listed** version.
+This is the checklist for publishing Curbox Browser on addons.mozilla.org (AMO). A **listed** release appears publicly on AMO after review. An **unlisted** release is signed but only installable by people who have the file, which suits private test builds.
 
 ## 1. Build and check
 
@@ -18,26 +18,25 @@ npm run zip:firefox       # make the files to upload
 | `curbox-extension-<version>-firefox.zip` | The add-on itself |
 | `curbox-extension-<version>-sources.zip` | The source code Mozilla needs to review the bundled code |
 
-Expected linter result: **0 errors**, and these 4 warnings, which are safe to ship:
+Expected linter result: **0 errors**, and these 2 warnings, which are safe to ship:
 
 | Warning | Why it is fine |
 | --- | --- |
-| `KEY_FIREFOX_UNSUPPORTED_BY_MIN_VERSION` and the Android equivalent | `data_collection_permissions` is only read by Firefox 140+ (142+ on Android). Older versions ignore it and still install the add-on, and AMO requires the key for new add-ons. |
-| `UNSAFE_VAR_ASSIGNMENT` (two in `chunks/shell-*.js`) | These are inside React DOM's own code, not Curbox's. Curbox never assigns `innerHTML` itself. |
+| `UNSAFE_VAR_ASSIGNMENT` (two in `chunks/shell-*.js`) | These are inside React DOM's own code: one renders `dangerouslySetInnerHTML` and one creates `<script>` elements. Curbox uses neither, and never assigns `innerHTML` itself. |
+
+The minimum versions are Firefox 140 and Firefox for Android 142, the first versions that read `data_collection_permissions`, which AMO requires for new add-ons.
 
 Each release must have a higher `version` in `package.json` than the last one uploaded to AMO, because AMO rejects a version number it has already seen.
 
-## 2. Sign the test build
+## 2. Publish on AMO
 
-Either upload in the browser:
+1. Go to the [AMO Developer Hub](https://addons.mozilla.org/developers/addon/submit/distribution) and choose **On this site** (listed).
+2. Upload `curbox-extension-<version>-firefox.zip`. This is the file AMO validates.
+3. When asked whether the add-on uses a bundler, minifier or other tool, say **yes** and upload `curbox-extension-<version>-sources.zip`.
+4. Fill in the listing from section 5 and paste the notes from section 4 into **Notes to Reviewer**. Leave **This add-on is experimental** unticked for a stable release.
+5. Submit. Listed versions go public once a reviewer approves them.
 
-1. Go to the [AMO Developer Hub](https://addons.mozilla.org/developers/addon/submit/distribution) and choose **On your own** (unlisted).
-2. Upload `curbox-extension-<version>-firefox.zip`.
-3. When asked whether the add-on uses a bundler or minifier, say **yes** and upload `curbox-extension-<version>-sources.zip`.
-4. Paste the notes from section 4 into **Notes to Reviewer**.
-5. Download the signed `.xpi` once it is approved. Unlisted builds are usually signed automatically within minutes.
-
-Or sign from the terminal with an [AMO API key](https://addons.mozilla.org/developers/addon/api/key/):
+For a private test build instead, choose **On your own** (unlisted) in step 1, or sign from the terminal with an [AMO API key](https://addons.mozilla.org/developers/addon/api/key/):
 
 ```bash
 npx web-ext sign \
@@ -48,15 +47,15 @@ npx web-ext sign \
   --api-secret "$AMO_JWT_SECRET"
 ```
 
-The add-on ID is `curbox@curbox.app` (set in `wxt.config.ts`). It is permanent once the first version is uploaded, so change it before the first upload if you want a different one.
+The add-on ID is `curbox@curbox.app` (set in `wxt.config.ts`). It is permanent once the first version is uploaded.
 
-## 3. Share with testers
+## 3. Test an unlisted build
 
 **Firefox on a computer:** open the signed `.xpi` file in Firefox (drag it into a window, or open it from the downloads list) and click **Add**.
 
-**Firefox for Android:** a file install needs the hidden debug menu. In Firefox, open **Settings > About Firefox** and tap the Firefox logo five times, then go back to **Settings** and use **Install extension from file** with the signed `.xpi`. If that option is missing in a tester's version, they can use Firefox Nightly, or wait for the listed release.
+**Firefox for Android:** a file install needs the hidden debug menu. In Firefox, open **Settings > About Firefox** and tap the Firefox logo five times, then go back to **Settings** and use **Install extension from file** with the signed `.xpi`. If that option is missing in a tester's version, they can use Firefox Nightly, or install the listed release from AMO.
 
-What to ask testers to try:
+What to try:
 
 - The first run introduction, including opening the Terms and Privacy Policy from the consent dialog.
 - Usage stats after a few hours of normal browsing.
@@ -113,16 +112,19 @@ To see a block: Reducers > Website Blocker > add a group with a site such as exa
 a daily limit of 0 minutes, then visit that site.
 ```
 
-## 5. Listing details (for the later public release)
+## 5. Listing details
 
 | Field | Value |
 | --- | --- |
-| Name | Curbox |
-| Summary | A calm companion that helps you stay conscious of your time online. |
-| Category | AMO has no productivity category, so **Other** fits best |
-| Homepage | https://curbox.app |
+| Name | Curbox: Website Blocker & Screen Time |
+| URL | `curbox` |
+| Summary | Block distracting websites, set daily limits and see where your time really goes online. Focus sessions with a Pomodoro timer, calm warning screens and mindful nudges. Open source and private: your data never leaves your browser. |
+| Experimental | No |
+| Category | Privacy & Security |
+| Support email | aguptaq88@gmail.com |
 | Support site | https://github.com/curbox-app/curbox-extension/issues |
-| Privacy policy | https://curbox.app/privacy.html |
+| License | Must match the LICENSE file in this repository |
+| Privacy policy | Yes, see https://curbox.app/privacy.html |
 | Data collection | None |
 | Screenshots | `docs/screenshots/` |
-| Description | Start from the feature sections in `README.md`. |
+| Description | Start from the feature sections in `README.md`. Keep dashes out of listing text. |

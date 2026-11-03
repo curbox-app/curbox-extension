@@ -20,6 +20,7 @@ export default defineConfig({
       "docs/**",
       "stats.html",
       ".env*",
+      "**/*.zip",
     ],
   },
   manifest: ({ browser }) => ({
@@ -38,17 +39,18 @@ export default defineConfig({
         matches: ["<all_urls>"],
       },
     ],
-    // Tailwind v4's CSS needs Firefox 128. Curbox collects no data, and sync
-    // is not connected in this build, so there is nothing to declare.
+    // data_collection_permissions is read from Firefox 140 and Firefox for
+    // Android 142, the floor here. Curbox collects no data, and sync is not
+    // connected in this build, so there is nothing to declare.
     ...(browser === "firefox" && {
       browser_specific_settings: {
         gecko: {
           id: "curbox@curbox.app",
-          strict_min_version: "128.0",
+          strict_min_version: "140.0",
           data_collection_permissions: { required: ["none"] },
         },
         gecko_android: {
-          strict_min_version: "128.0",
+          strict_min_version: "142.0",
         },
       },
     }),
