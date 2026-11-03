@@ -36,6 +36,24 @@ export async function startSession(
   return session;
 }
 
+// Joins a session another device started, ending when it ends there.
+export async function startSessionUntil(group: FocusGroup, endsAt: number, exitable: boolean): Promise<FocusSession> {
+  const now = Date.now();
+  const session: FocusSession = {
+    groupId: group.id,
+    name: group.name,
+    domains: group.domains,
+    packages: group.packages ?? [],
+    mode: group.mode,
+    startedAt: now,
+    endsAt,
+    exitable,
+    plannedMs: Math.max(0, endsAt - now),
+  };
+  await set("focus", session);
+  return session;
+}
+
 // Each focus round counts as its own session in the stats, like Android.
 // Breaks are rest, so they are never logged.
 async function logSession(focus: FocusSession, completed: boolean): Promise<void> {

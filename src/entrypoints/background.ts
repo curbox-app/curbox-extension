@@ -25,10 +25,25 @@ import {
 } from "../core/usage";
 import { getSyncEngine } from "../lib/sync/engine";
 import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
+import { getLanSync, isLanRequest, type LanRequest, type LanResponse } from "../lib/lan/engine";
 
 let focusedTabId: number | null = null;
 
 const sync = getSyncEngine();
+const lan = getLanSync();
+
+async function handleLan(req: LanRequest): Promise<LanResponse> {
+  try {
+    if (req.type === "lan:pair") await lan.pair(req.address, req.code);
+    else if (req.type === "lan:startPairing") await lan.startPairing(req.hint);
+    else if (req.type === "lan:cancelPairing") await lan.cancelPairing();
+    else if (req.type === "lan:unpair") await lan.unpair();
+    else if (req.type === "lan:syncNow") await lan.syncNow();
+    return { ok: true, status: await lan.status() };
+  } catch (err) {
+    return { ok: false, error: String((err as Error)?.message ?? err), status: await lan.status() };
+  }
+}
 
 async function handleSync(req: SyncRequest): Promise<SyncResponse> {
   try {
@@ -412,6 +427,7 @@ export default defineBackground(() => {
 
   // Call registerSyncProvider before this when a remote sync service is connected.
   void sync.start().catch(() => undefined);
+  void lan.start().catch(() => undefined);
 
   // Smallest interval the API allows, so a closed lid stops counting promptly.
   // Missing on Firefox Android; skipping it must not abort the rest of startup.
@@ -431,6 +447,7 @@ export default defineBackground(() => {
         })
         .catch(() => undefined);
       void sync.pullSinceCursor().catch(() => undefined);
+      void lan.syncNow().catch(() => undefined);
     } else if (alarm.name === "focus-end") {
       void activeSession().then(() => scheduleAllTabs(), () => undefined);
     } else if (alarm.name === "grant-end") {
@@ -455,7 +472,10 @@ export default defineBackground(() => {
       syncWindowFocus();
       void evaluateFocused().catch(() => undefined);
     }
-    if ("focus" in changed) scheduleFocusEnd(changed.focus ?? null);
+    if ("focus" in changed) {
+      scheduleFocusEnd(changed.focus ?? null);
+      void lan.onLocalFocusChanged().catch(() => undefined);
+    }
     if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
     if ("settings" in changed && changed.settings) void reconcileLists(changed.settings).catch(() => undefined);
     if ("focus" in changed || "focusLog" in changed || "settings" in changed || "wordLists" in changed) {
@@ -547,6 +567,12 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (!isSyncRequest(message)) return;
     void handleSync(message).then(sendResponse);
+    return true;
+  });
+
+  browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+    if (!isLanRequest(message)) return;
+    void handleLan(message).then(sendResponse);
     return true;
   });
 });
