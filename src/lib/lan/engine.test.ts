@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "#imports";
-import { get, set } from "../storage";
+import { get, set, usageKey } from "../storage";
+import { todayKey } from "../time";
 import { newFocusGroup } from "../types";
 import { open, REQUEST_AAD, responseAad, seal, deriveLanKey } from "./crypto";
 import { LanSync } from "./engine";
@@ -15,6 +16,8 @@ function fakePhone(key: Uint8Array) {
     exact: true, changedAt: Date.now(), rev: 1, groups: [{ id: "p1", name: "Study", exitable: true }],
   };
   const calls: string[] = [];
+  const usage: { date: string; totalMs: number }[] = [];
+  const net = { id: "192.168.1.0/24@192.168.1.1", label: "Home" };
   const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
     const req = JSON.parse(await open(key, REQUEST_AAD, String(init.body)));
     calls.push(req.op);
@@ -28,10 +31,15 @@ function fakePhone(key: Uint8Array) {
       reply.result = "applied";
     }
     if (req.op === "wait") await new Promise(() => undefined); // never answers in tests
+    if (req.op === "usage") {
+      usage.push(...req.days);
+      reply.known = Object.fromEntries(usage.map((d: { date: string; totalMs: number }) => [d.date, d.totalMs]));
+    }
+    reply.net = { id: net.id, label: net.label, address: "" };
     reply.phone = { ...phone };
     return new Response(await seal(key, responseAad(req.id), JSON.stringify(reply)), { status: 200 });
   });
-  return { phone, calls, fetchMock };
+  return { phone, calls, fetchMock, usage, net };
 }
 
 describe("lan engine", () => {
@@ -104,5 +112,36 @@ describe("lan engine", () => {
     await startSession(groups[0], 25, true);
     await lan.onLocalFocusChanged();
     expect(fake.phone.active).toBe(true);
+  });
+
+  it("follows the phone to another network", async () => {
+    const lan = new LanSync();
+    await lan.pair("192.168.1.20", CODE);
+    expect((await lan.status()).places.map((p) => p.label)).toEqual(["Home"]);
+    // The phone was seen at the office before.
+    await browser.storage.local.set({
+      "lan.places": [...(await lan.status()).places, { id: "10.0.0.0/24@10.0.0.1", label: "Office", address: "10.0.0.42:47621", lastOkAt: 1 }],
+    });
+    // Now it moved to the office WiFi and only answers there.
+    fake.net.id = "10.0.0.0/24@10.0.0.1";
+    fake.net.label = "Office";
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      if (!url.startsWith("http://10.0.0.42:")) throw new TypeError("unreachable");
+      if (url.endsWith("/v1/hello")) return new Response('{"app":"curbox-sync","proto":2}');
+      return fake.fetchMock(url, init);
+    });
+    await lan.syncNow();
+    const status = await lan.status();
+    expect(status.address).toBe("10.0.0.42:47621");
+    expect(status.places[0].label).toBe("Office");
+  });
+
+  it("shares daily site totals with the phone", async () => {
+    await browser.storage.local.set({ [usageKey(todayKey())]: { "a.com": { ms: 300_000, paths: {} } } });
+    const lan = new LanSync();
+    await lan.pair("192.168.1.20", CODE);
+    for (let i = 0; i < 20 && !fake.usage.length; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(fake.usage).toEqual([{ date: todayKey(), totalMs: 300_000, sites: [{ domain: "a.com", ms: 300_000 }] }]);
+    expect((await lan.status()).usageSentAt).toBeGreaterThan(0);
   });
 });

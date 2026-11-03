@@ -39,6 +39,7 @@ async function handleLan(req: LanRequest): Promise<LanResponse> {
     else if (req.type === "lan:cancelPairing") await lan.cancelPairing();
     else if (req.type === "lan:unpair") await lan.unpair();
     else if (req.type === "lan:syncNow") await lan.syncNow();
+    else if (req.type === "lan:forgetPlace") await lan.forgetPlace(req.id);
     return { ok: true, status: await lan.status() };
   } catch (err) {
     return { ok: false, error: String((err as Error)?.message ?? err), status: await lan.status() };

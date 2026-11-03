@@ -1,11 +1,13 @@
 import { browser } from "#imports";
 import { fromBase64Url, randomBytes, toBase64Url, toHex } from "../crypto";
-import { get, update } from "../storage";
+import { get, getUsage, update } from "../storage";
+import { lastNDays } from "../time";
 import { activeSession, endSession, startSessionUntil } from "../../core/focus";
 import { deriveLanKey, normalizeCode, CODE_LENGTH, open, REQUEST_AAD, responseAad, seal } from "./crypto";
 import type { FocusGroup } from "../types";
 import { candidateSubnets, newPairingCode, pairingLink } from "./link";
 import { decide, localView, phoneView, sameGroup, type FocusView, type PhoneState } from "./reconcile";
+import { changedDays, clientName, DAYS_PER_REQUEST, USAGE_DAYS, usageDays } from "./usage";
 
 // Focus mode sync with Curbox on an Android phone over the local WiFi, through
 // the CurboxSync companion app. The phone runs the server; this side decides
@@ -17,6 +19,11 @@ const K_STATE = "lan.state";
 const K_LOCAL_CHANGED = "lan.localChangedAt";
 const K_PENDING = "lan.pending";
 const K_LAST_ADDRESS = "lan.lastAddress";
+const K_PLACES = "lan.places";
+const K_USAGE = "lan.usage";
+const K_CLIENT = "lan.clientId";
+const ROAM_REST_MS = 5 * 60_000;
+const USAGE_EVERY_MS = 60_000;
 const PAIRING_MS = 10 * 60_000;
 
 interface PendingPairing {
@@ -48,6 +55,26 @@ interface Reply {
   phone: PhoneState;
   result?: string;
   now: number;
+  /** Proto 2: the network the phone is on. */
+  net?: { id: string; label: string; address: string };
+  /** Proto 2, `usage` replies: the totals the phone holds for this browser. */
+  known?: Record<string, number>;
+  error?: string;
+}
+
+/** The phone's address on one network, so it is found again after a move. */
+export interface LanPlace {
+  id: string;
+  label: string;
+  address: string;
+  lastOkAt: number;
+}
+
+interface UsageSync {
+  /** Which pairing the known totals belong to. */
+  key: string;
+  known: Record<string, number> | null;
+  sentAt: number;
 }
 
 export interface LanStatus {
@@ -59,6 +86,11 @@ export interface LanStatus {
   message: string;
   /** While waiting for the phone to scan: the link to show as a QR code. */
   pairingLink: string | null;
+  /** Networks this browser has met the phone on, newest first. */
+  places: LanPlace[];
+  /** The network the phone was last seen on. */
+  placeId: string;
+  usageSentAt: number;
 }
 
 export type LanRequest =
@@ -67,7 +99,8 @@ export type LanRequest =
   | { type: "lan:startPairing"; hint: string | null }
   | { type: "lan:cancelPairing" }
   | { type: "lan:unpair" }
-  | { type: "lan:syncNow" };
+  | { type: "lan:syncNow" }
+  | { type: "lan:forgetPlace"; id: string };
 
 export type LanResponse = { ok: boolean; error?: string; status: LanStatus };
 
@@ -181,7 +214,9 @@ export class LanSync {
   }
 
   async status(): Promise<LanStatus> {
-    const [config, state, pending] = await Promise.all([this.config(), this.state(), this.pending()]);
+    const [config, state, pending, places, usage] = await Promise.all([
+      this.config(), this.state(), this.pending(), this.places(), read<UsageSync | null>(K_USAGE, null),
+    ]);
     return {
       paired: config !== null,
       address: config?.address ?? "",
@@ -190,7 +225,136 @@ export class LanSync {
       phone: state.phone,
       message: state.message || state.note || "",
       pairingLink: !config && pending ? pairingLink(pending.code) : null,
+      places,
+      placeId: places.find((p) => p.address === config?.address)?.id ?? "",
+      usageSentAt: config && usage?.key === config.key ? usage.sentAt : 0,
     };
+  }
+
+  private async places(): Promise<LanPlace[]> {
+    const places = await read<LanPlace[]>(K_PLACES, []);
+    return [...places].sort((a, b) => b.lastOkAt - a.lastOkAt);
+  }
+
+  private async notePlace(config: LanConfig, reply: Reply): Promise<void> {
+    if (!reply.net?.id) return;
+    const places = await this.places();
+    const old = places.find((p) => p.id === reply.net!.id);
+    // Rewrite only when something visible changed, or once a minute.
+    if (old && old.address === config.address && old.label === reply.net.label && Date.now() - old.lastOkAt < 60_000) return;
+    const place: LanPlace = { id: reply.net.id, label: reply.net.label, address: config.address, lastOkAt: Date.now() };
+    await write(K_PLACES, [place, ...places.filter((p) => p.id !== place.id)].slice(0, 12));
+  }
+
+  async forgetPlace(id: string): Promise<void> {
+    await write(K_PLACES, (await this.places()).filter((p) => p.id !== id));
+  }
+
+  /** Sends a request to the paired phone and remembers which network answered. */
+  private async call(config: LanConfig, body: Record<string, unknown>, timeoutMs?: number): Promise<Reply> {
+    const reply = await rpc(config, body, timeoutMs);
+    await this.notePlace(config, reply).catch(() => undefined);
+    return reply;
+  }
+
+  private roamJob: Promise<LanConfig | null> | null = null;
+  private roamRound = 0;
+  private roamRestUntil = 0;
+
+  /**
+   * The phone stopped answering at its address, most likely because one of the
+   * devices moved to another WiFi. Tries the phone's other saved addresses, then
+   * sweeps one range per call with the paired key. Returns the new config if found.
+   */
+  private roam(config: LanConfig): Promise<LanConfig | null> {
+    if (Date.now() < this.roamRestUntil) return Promise.resolve(null);
+    // The poll loop and the tick can both notice at once; they share one search.
+    this.roamJob ??= this.search(config).finally(() => (this.roamJob = null));
+    return this.roamJob;
+  }
+
+  private async search(config: LanConfig): Promise<LanConfig | null> {
+    const places = await this.places();
+    const tryAt = async (address: string) => {
+      const moved = { ...config, address };
+      await this.call(moved, { op: "state" }, 2_500);
+      return moved;
+    };
+    const saved = places.map((p) => p.address).filter((a) => a !== config.address);
+    if (saved.length) {
+      const found = await Promise.any(saved.map(tryAt)).catch(() => null);
+      if (found) return await this.moveTo(found);
+    }
+    const subnets = candidateSubnets(config.address, ...places.map((p) => p.address));
+    const subnet = subnets[this.roamRound % subnets.length];
+    this.roamRound++;
+    if (this.roamRound % subnets.length === 0) this.roamRestUntil = Date.now() + ROAM_REST_MS;
+    for (const address of await sweepSubnet(subnet)) {
+      if (address === config.address) continue;
+      const found = await tryAt(address).catch(() => null);
+      if (found) return await this.moveTo(found);
+    }
+    return null;
+  }
+
+  private async moveTo(config: LanConfig): Promise<LanConfig> {
+    if (!(await this.config())) return config;
+    this.roamRound = 0;
+    this.roamRestUntil = 0;
+    await write(K_CONFIG, config);
+    await write(K_LAST_ADDRESS, config.address);
+    await this.patchState({ message: "" });
+    return config;
+  }
+
+  /** Reaches the phone, following it to another network when it moved. */
+  private async reach(config: LanConfig, body: Record<string, unknown>, timeoutMs?: number): Promise<{ config: LanConfig; reply: Reply }> {
+    try {
+      return { config, reply: await this.call(config, body, timeoutMs) };
+    } catch (err) {
+      if (!(err instanceof LanError) || err.kind !== "unreachable") throw err;
+      const moved = await this.roam(config);
+      if (!moved) throw err;
+      return { config: moved, reply: await this.call(moved, body, timeoutMs) };
+    }
+  }
+
+  private usageBusy = false;
+
+  /** Shares this browser's daily site totals with the phone, at most once a minute. */
+  private async pushUsage(config: LanConfig): Promise<void> {
+    if (this.usageBusy) return;
+    let sync = await read<UsageSync | null>(K_USAGE, null);
+    if (!sync || sync.key !== config.key) sync = { key: config.key, known: null, sentAt: 0 };
+    if (Date.now() - sync.sentAt < USAGE_EVERY_MS) return;
+    this.usageBusy = true;
+    try {
+      let clientId = await read<string | null>(K_CLIENT, null);
+      if (!clientId) await write(K_CLIENT, (clientId = toHex(randomBytes(12))));
+      const days = lastNDays(USAGE_DAYS);
+      const ignored = (await get("settings")).usageIgnoredSites ?? [];
+      let pending = changedDays(usageDays(await getUsage(days), days, ignored), sync.known);
+      // Nothing new; a first contact still asks once what the phone holds.
+      if (pending.length === 0 && sync.known !== null) {
+        await write(K_USAGE, { ...sync, sentAt: Date.now() });
+        return;
+      }
+      let rounds = 0;
+      do {
+        const batch = pending.slice(0, DAYS_PER_REQUEST);
+        const reply = await this.call(config, { op: "usage", client: { id: clientId, name: clientName() }, days: batch });
+        // A phone on proto 1 does not know usage; try again in a while.
+        if (!reply.ok || !reply.known) {
+          await write(K_USAGE, { ...sync, sentAt: Date.now() + 60 * 60_000 });
+          return;
+        }
+        sync = { key: config.key, known: reply.known, sentAt: Date.now() };
+        pending = pending.slice(batch.length);
+      } while (pending.length && ++rounds < 4);
+      await write(K_USAGE, sync);
+    } finally {
+      this.usageBusy = false;
+    }
   }
 
   private async pending(): Promise<PendingPairing | null> {
@@ -257,7 +421,7 @@ export class LanSync {
 
   /** Confirms the phone opens our sealed requests, then saves it as the paired phone. */
   private async adopt(config: LanConfig): Promise<void> {
-    await rpc(config, { op: "state" }, 4_000);
+    await this.call(config, { op: "state" }, 4_000);
     this.pollToken++;
     await write(K_CONFIG, config);
     await write(K_LAST_ADDRESS, config.address);
@@ -278,7 +442,7 @@ export class LanSync {
     this.pollToken++;
     const config = await this.config();
     if (config) await write(K_LAST_ADDRESS, config.address);
-    await browser.storage.local.remove([K_CONFIG, K_STATE, K_LOCAL_CHANGED]);
+    await browser.storage.local.remove([K_CONFIG, K_STATE, K_LOCAL_CHANGED, K_USAGE]);
   }
 
   /** Called whenever the local focus key changes. */
@@ -293,14 +457,17 @@ export class LanSync {
     const config = await this.config();
     if (!config) return;
     if (this.pollToken === 0) this.startPolling();
-    await this.serial(async () => {
+    const reached = await this.serial(async () => {
       try {
-        await this.reconcile(config, await rpc(config, { op: "state" }));
+        const r = await this.reach(config, { op: "state" });
+        await this.reconcile(r.config, r.reply);
+        return r.config;
       } catch (err) {
         await this.patchState({ message: String((err as Error).message ?? err) });
         throw err;
       }
     });
+    void this.pushUsage(reached).catch(() => undefined);
   }
 
   // Long poll: the phone answers as soon as its focus changes, or after 25s.
@@ -312,9 +479,9 @@ export class LanSync {
         if (!config) return;
         try {
           const { rev } = await this.state();
-          const reply = await rpc(config, { op: "wait", since: rev, wait: WAIT_MS }, WAIT_MS + 10_000);
+          const { config: at, reply } = await this.reach(config, { op: "wait", since: rev, wait: WAIT_MS }, WAIT_MS + 10_000);
           if (token !== this.pollToken) return;
-          await this.serial(() => this.reconcile(config, reply));
+          await this.serial(() => this.reconcile(at, reply));
         } catch (err) {
           await this.patchState({ message: String((err as Error).message ?? err) }).catch(() => undefined);
           await sleep(10_000);
@@ -341,7 +508,7 @@ export class LanSync {
     if (action !== "none") message = "";
 
     if (action === "push") {
-      const res = await rpc(config, { op: "focus", focus: local });
+      const res = await this.call(config, { op: "focus", focus: local });
       phone = res.phone;
       if (res.result === "locked") {
         message = "Focus on your phone cannot be ended early, so I kept it on here too.";

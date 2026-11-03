@@ -32,6 +32,14 @@ async function send(req: LanRequest): Promise<LanResponse> {
   return (await browser.runtime.sendMessage(req)) as LanResponse;
 }
 
+function ago(at: number): string {
+  const min = Math.round((Date.now() - at) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  if (min < 48 * 60) return `${Math.floor(min / 60)}h ago`;
+  return `${Math.floor(min / 1440)}d ago`;
+}
+
 function timeLeft(endsAt: number): string {
   const min = Math.max(0, Math.round((endsAt - Date.now()) / 60_000));
   return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m left` : `${min}m left`;
@@ -88,7 +96,8 @@ export function LanPanel() {
     <div>
       <h1 className="font-display text-5xl text-ink">Phone over WiFi</h1>
       <p className="mt-1 text-sm text-muted">
-        Keep focus mode in step with Curbox on your Android phone. Nothing leaves your home network.
+        Keep focus mode in step with Curbox on your Android phone, and see both devices' time together in Curbox Sync. Nothing
+        leaves your WiFi.
       </p>
     </div>
   );
@@ -138,12 +147,13 @@ export function LanPanel() {
   }
 
   const phone = status.phone;
+  const here = status.places.find((p) => p.id === status.placeId);
   return (
     <div className="flex flex-col gap-5">
       {header}
       <div className="card flex flex-col gap-3 p-6">
         <p className="font-display text-3xl leading-none">{status.reachable ? "In step" : "Looking for your phone"}</p>
-        <p className="text-sm text-muted">{status.address}</p>
+        <p className="text-sm text-muted">{here ? `${here.label} · ${status.address}` : status.address}</p>
         {phone?.connected && (
           <p className="text-sm text-ink">
             {phone.active ? `Phone focus: ${phone.name || "Focus"}, ${timeLeft(phone.endsAt)}` : "Focus is off on your phone"}
@@ -159,9 +169,30 @@ export function LanPanel() {
           </button>
         </div>
       </div>
+      {status.places.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="label px-1">Saved networks</p>
+          {status.places.map((p) => (
+            <div key={p.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
+              <span className="flex-1">
+                <b className="block text-sm text-ink">{p.label || "WiFi"}</b>
+                <small className="text-muted">
+                  {p.address.split(":")[0]} · {p.id === status.placeId ? "here now" : `last met ${ago(p.lastOkAt)}`}
+                </small>
+              </span>
+              <button className={btnGhost} disabled={busy} onClick={() => void run({ type: "lan:forgetPlace", id: p.id })}>
+                Forget
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {status.usageSentAt > 0 && status.usageSentAt <= Date.now() && (
+        <p className="text-sm text-muted">Site time shared with your phone {ago(status.usageSentAt)}.</p>
+      )}
       <p className="text-xs text-faint">
-        Focus groups are matched by name, so give a group the same name on both devices. Curbox Sync must stay on and both
-        devices on the same WiFi.
+        Focus groups are matched by name, so give a group the same name on both devices. When you move to another WiFi, I find
+        your phone again on its own. Rename networks in Curbox Sync.
       </p>
     </div>
   );
