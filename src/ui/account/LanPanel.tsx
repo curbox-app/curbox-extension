@@ -53,6 +53,7 @@ export function LanPanel() {
   const [code, setCode] = useState("");
   const [manual, setManual] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  const [synced, setSynced] = useState(false);
 
   const run = useCallback(async (req: LanRequest) => {
     setBusy(req.type !== "lan:status");
@@ -153,6 +154,7 @@ export function LanPanel() {
       {header}
       <div className="card flex flex-col gap-3 p-6">
         <p className="font-display text-3xl leading-none">{status.reachable ? "In step" : "Looking for your phone"}</p>
+        {status.lastOkAt > 0 && <p className="text-sm text-ink">Last synced {ago(status.lastOkAt)}</p>}
         <p className="text-sm text-muted">{here ? `${here.label} · ${status.address}` : status.address}</p>
         {phone?.connected && (
           <p className="text-sm text-ink">
@@ -161,8 +163,18 @@ export function LanPanel() {
         )}
         {(error ?? status.message) && <p className="text-sm text-muted">{error ?? status.message}</p>}
         <div className="flex gap-2">
-          <button className={btnOutline} disabled={busy} onClick={() => void run({ type: "lan:syncNow" })}>
-            Sync now
+          <button
+            className={btnOutline}
+            disabled={busy}
+            onClick={() =>
+              void run({ type: "lan:syncNow" }).then((r) => {
+                if (!r.ok) return;
+                setSynced(true);
+                window.setTimeout(() => setSynced(false), 2500);
+              })
+            }
+          >
+            {busy ? "Syncing..." : synced ? "Synced" : "Sync now"}
           </button>
           <button className={btnGhost} disabled={busy} onClick={() => void run({ type: "lan:unpair" })}>
             Unpair

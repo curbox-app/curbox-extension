@@ -144,4 +144,18 @@ describe("lan engine", () => {
     expect(fake.usage).toEqual([{ date: todayKey(), totalMs: 300_000, sites: [{ domain: "a.com", ms: 300_000 }] }]);
     expect((await lan.status()).usageSentAt).toBeGreaterThan(0);
   });
+
+  it("stays paired when the first sync after pairing fails", async () => {
+    let calls = 0;
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      if (++calls > 1) throw new TypeError("network went away");
+      return fake.fetchMock(url, init);
+    });
+    const lan = new LanSync();
+    await lan.pair("192.168.1.20", CODE);
+    const status = await lan.status();
+    expect(status.paired).toBe(true);
+    expect(status.lastOkAt).toBeGreaterThan(0);
+    expect(status.pairingLink).toBeNull();
+  });
 });

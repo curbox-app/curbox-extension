@@ -211,12 +211,15 @@ export class LanSync {
 
   async start(): Promise<void> {
     if (await this.config()) this.startPolling();
+    else if (await this.pending()) void this.discover();
   }
 
   async status(): Promise<LanStatus> {
     const [config, state, pending, places, usage] = await Promise.all([
       this.config(), this.state(), this.pending(), this.places(), read<UsageSync | null>(K_USAGE, null),
     ]);
+    // The worker may have restarted while the code was on screen; keep looking.
+    if (!config && pending) void this.discover();
     return {
       paired: config !== null,
       address: config?.address ?? "",
@@ -421,13 +424,15 @@ export class LanSync {
 
   /** Confirms the phone opens our sealed requests, then saves it as the paired phone. */
   private async adopt(config: LanConfig): Promise<void> {
-    await this.call(config, { op: "state" }, 4_000);
+    const first = await this.call(config, { op: "state" }, 4_000);
     this.pollToken++;
     await write(K_CONFIG, config);
     await write(K_LAST_ADDRESS, config.address);
-    await write(K_STATE, EMPTY_STATE);
-    await this.syncNow();
+    await browser.storage.local.remove(K_PENDING);
+    // The phone already answered, so pairing worked even if the first sync does not.
+    await write(K_STATE, { ...EMPTY_STATE, lastOkAt: Date.now(), phone: first.phone });
     this.startPolling();
+    await this.syncNow().catch(() => undefined);
   }
 
   /** Pairs with an address and the code shown on the phone, typed by hand. */
