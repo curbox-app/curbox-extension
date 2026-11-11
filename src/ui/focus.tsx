@@ -749,15 +749,26 @@ export function FocusPanel({
   focusGroups,
   focusLog,
   onChangeGroups,
+  setupRequest = 0,
 }: {
   focus: FocusSession | null;
   focusGroups: FocusGroup[];
   focusLog: FocusLogEntry[];
   onChangeGroups: (groups: FocusGroup[]) => void;
+  setupRequest?: number;
 }) {
   const [page, setPage] = useState<"home" | "stats">("home");
   const [setupOpen, setSetupOpen] = useState(false);
   const [prefs, setPrefs, savePrefs] = useFocusPrefs();
+
+  useEffect(() => {
+    if (setupRequest === 0) return;
+    setPage("home");
+    if (!focus) {
+      setPrefs((current) => ({ ...current, pomodoro: true }));
+      setSetupOpen(true);
+    }
+  }, [setupRequest, focus]);
 
   if (page === "stats") {
     return (

@@ -63,6 +63,7 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
   const { usage, settings, focus, focusLog, ready, termsAccepted, onboardingPending, acceptTerms, finishOnboarding, saveSettings } = useCurbox();
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab>("usage");
+  const [pomodoroRequest, setPomodoroRequest] = useState(0);
   const [reducerPage, setReducerPage] = useState<ReducerPage>(null);
   const [screenBack, setScreenBack] = useState<ScreenBack | null>(null);
 
@@ -116,7 +117,15 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
         <ErrorBoundary key={`${tab}:${reducerPage}`}>
           <div className="tab-enter">
             {tab === "usage" && (
-              <UsageView usage={usage} prefs={draft} onChangePrefs={(prefs) => commit({ ...draft, ...prefs })} />
+              <UsageView
+                usage={usage}
+                prefs={draft}
+                onChangePrefs={(prefs) => commit({ ...draft, ...prefs })}
+                onPomodoro={() => {
+                  goTab("focus");
+                  setPomodoroRequest((request) => request + 1);
+                }}
+              />
             )}
             {tab === "focus" && (
               <FocusPanel
@@ -124,6 +133,7 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                 focusGroups={draft.focusGroups}
                 focusLog={focusLog}
                 onChangeGroups={(focusGroups) => commit({ ...draft, focusGroups })}
+                setupRequest={pomodoroRequest}
               />
             )}
             {tab === "reducers" && reducerPage === null && <ReducersHome onOpen={setReducerPage} />}

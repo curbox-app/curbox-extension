@@ -506,11 +506,13 @@ export function UsageView({
   usage,
   prefs,
   onChangePrefs,
+  onPomodoro,
   compact,
 }: {
   usage: UsageHistory;
   prefs: UsagePrefs;
   onChangePrefs: (prefs: Partial<UsagePrefs>) => void;
+  onPomodoro: () => void;
   compact?: boolean;
 }) {
   const today = todayKey();
@@ -559,7 +561,21 @@ export function UsageView({
             <p className="text-[11px] font-medium tracking-[0.04em] text-muted">{totalLabel(period, scale, today)}</p>
             <p className="font-display tnum mt-1 text-[56px] leading-none text-ink">{msToWidget(total)}</p>
           </div>
-          <UsageMenu weekly={scale === "weeks"} onWeekly={toggleWeekly} onOpen={setSheet} />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Start a Pomodoro focus session"
+              title="Pomodoro"
+              onClick={onPomodoro}
+              className="grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:bg-state hover:text-ink"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 1.5M9 2h6M12 2v3M18 6l1.5-1.5" />
+              </svg>
+            </button>
+            <UsageMenu weekly={scale === "weeks"} onWeekly={toggleWeekly} onOpen={setSheet} />
+          </div>
         </div>
         <div className="mt-6">
           <BarGraph list={list} totals={totals} selected={selected} onSelect={setPicked} />
