@@ -46,13 +46,17 @@ export default defineContentScript({
 
     const apply = (decision: BlockDecision) => {
       if (!decision.blocked) return overlay.hide();
+      const domain = parseLocation(location.href)?.domain ?? "";
       overlay.show(decision, {
         onProceed: (minutes) => {
-          const domain = parseLocation(location.href)?.domain;
           if (domain) void sendToBackground({ type: "proceed", groupId: decision.groupId, domain, minutes });
         },
-        onLeave: leave,
+        onLeave: () => {
+          if (decision.source === "group") void sendToBackground({ type: "leave" });
+          leave();
+        },
         onEndFocus: () => void sendToBackground({ type: "endFocus" }),
+        onStruggling: () => void sendToBackground({ type: "urgeSurf", domain }),
       });
     };
 

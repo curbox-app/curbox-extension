@@ -161,3 +161,17 @@ describe("warning screen details", () => {
     expect(decide(settings)).toMatchObject({ canProceed: false, focusGoalGroupName: "Deep work", focusGoalRemainingMs: 30 * 60_000 });
   });
 });
+
+describe("urge surfing on block screens", () => {
+  const withStreak = (unlockStreak: number, buttonEnabled: boolean, autoOfferEnabled = true) => {
+    const settings = { ...settingsFor(0), urgeSurf: { buttonEnabled, autoOfferEnabled } };
+    return evaluate({ location: { domain: "youtube.com", path: "/watch" }, settings, focus: null, usage: {}, focusLog: [], now: NOW, grants: {}, proceeds: {}, unlockStreak }).urgeSurf;
+  };
+
+  it("shows the button when on and offers help after 3 unlocks in a row", () => {
+    expect(withStreak(0, true)).toBe("button");
+    expect(withStreak(2, false)).toBe("none");
+    expect(withStreak(3, false)).toBe("offer");
+    expect(withStreak(3, true, false)).toBe("button");
+  });
+});

@@ -14,9 +14,11 @@ import type {
   Settings,
   SipStretchState,
   TimeRange,
+  UrgeSurfPrompt,
   UsageHistory,
   WarningScreen,
 } from "../lib/types";
+import { URGE_SURF_AUTO_OFFER_UNLOCK_COUNT } from "../lib/types";
 
 interface EvalInput {
   location: SiteLocation;
@@ -29,6 +31,7 @@ interface EvalInput {
   proceeds: Record<string, ProceedRecord>;
   lists?: CompiledLists;
   sipStretch?: SipStretchState;
+  unlockStreak?: number;
 }
 
 interface ActiveWindow {
@@ -51,6 +54,7 @@ export const PASS: BlockDecision = {
   proceedsLeft: -1,
   proceedRetryMinutes: 0,
   breakEndsAt: 0,
+  urgeSurf: "none",
 };
 
 function focusBlocks(location: SiteLocation, focus: FocusSession): boolean {
@@ -209,8 +213,15 @@ function defaultMessage(group: BlockGroup, reason: BlockReason): string {
   return `Take a breath before you open ${group.name}.`;
 }
 
+// Android shows the offer after several unlocks in a row, even when the button is off.
+function urgeSurfPrompt(settings: Settings, unlockStreak: number): UrgeSurfPrompt {
+  const { buttonEnabled, autoOfferEnabled } = settings.urgeSurf;
+  if (autoOfferEnabled && unlockStreak >= URGE_SURF_AUTO_OFFER_UNLOCK_COUNT) return "offer";
+  return buttonEnabled ? "button" : "none";
+}
+
 export function evaluate(input: EvalInput): BlockDecision {
-  const { location, settings, focus, usage, focusLog, now, grants, proceeds, lists, sipStretch } = input;
+  const { location, settings, focus, usage, focusLog, now, grants, proceeds, lists, sipStretch, unlockStreak } = input;
 
   // Android blocks every app during a Sip & Stretch break.
   if (settings.sipStretch.enabled && sipStretch && sipStretch.breakEndsAt > now) {
@@ -261,6 +272,7 @@ export function evaluate(input: EvalInput): BlockDecision {
       proceedsLeft: status.left,
       proceedRetryMinutes: status.retryMinutes,
       breakEndsAt: 0,
+      urgeSurf: urgeSurfPrompt(settings, unlockStreak ?? 0),
     };
   }
 

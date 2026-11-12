@@ -50,6 +50,12 @@ export async function recordProceed(groupId: string, minutes?: number): Promise<
       [groupId]: { count: timestamps.length, windowStart: timestamps[0] ?? now, timestamps },
     };
   });
+
+  await update("unlockStreak", (streak) => streak + 1);
+}
+
+export function resetUnlockStreak(): Promise<number> {
+  return update("unlockStreak", (streak) => (streak === 0 ? streak : 0));
 }
 
 // Android keeps an on-each-open grant while the user stays inside any target in

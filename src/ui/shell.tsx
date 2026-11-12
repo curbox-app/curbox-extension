@@ -10,6 +10,7 @@ import { GentlePromptPanel } from "./prompts";
 import { GrayscalePanel } from "./grayscale";
 import { UiHiderPanel } from "./ui-hider";
 import { SipStretchPanel } from "./sip-stretch";
+import { UrgeSurfPanel } from "./urge-surf-panel";
 import type { Settings } from "../lib/types";
 
 // Sync and its QR code library are rarely opened, so load them on demand.
@@ -17,7 +18,7 @@ const AccountPanel = lazy(() => import("./account/AccountPanel").then((m) => ({ 
 const LanPanel = lazy(() => import("./account/LanPanel").then((m) => ({ default: m.LanPanel })));
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "hider" | "prompts" | "sipStretch" | "grayscale" | "sync" | "lan" | null;
+type ReducerPage = "website" | "hider" | "prompts" | "sipStretch" | "urgeSurf" | "grayscale" | "sync" | "lan" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -161,6 +162,9 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                 {reducerPage === "sipStretch" && (
                   <SipStretchPanel config={draft.sipStretch} onChange={(sipStretch) => commit({ ...draft, sipStretch })} />
                 )}
+                {reducerPage === "urgeSurf" && (
+                  <UrgeSurfPanel config={draft.urgeSurf} onChange={(urgeSurf) => commit({ ...draft, urgeSurf })} />
+                )}
                 {reducerPage === "grayscale" && (
                   <GrayscalePanel
                     groups={draft.grayscaleGroups}
@@ -242,6 +246,19 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Sip &amp; Stretch</b>
           <small className="text-muted">Take a short break to drink water and move after long use.</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <button onClick={() => onOpen("urgeSurf")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-on-tertiary">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+            <path d="M3 9c2-1.5 3.5-1.5 5.5 0s3.5 1.5 5.5 0 3.5-1.5 5.5 0" />
+            <path d="M3 14c2-1.5 3.5-1.5 5.5 0s3.5 1.5 5.5 0 3.5-1.5 5.5 0" />
+          </svg>
+        </span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">Urge Surfing</b>
+          <small className="text-muted">Ride out a strong craving instead of fighting it.</small>
         </span>
         <span className="text-faint">›</span>
       </button>

@@ -7,6 +7,8 @@ export type ContentMessage =
   | { type: "navigated"; url: string; visible: boolean }
   | { type: "proceed"; groupId: string; domain: string; minutes?: number }
   | { type: "endFocus" }
+  | { type: "leave" }
+  | { type: "urgeSurf"; domain: string }
   | { type: "prompt"; url: string };
 
 export type PromptReply = { config: GentlePromptConfig; values: PromptValues } | null;

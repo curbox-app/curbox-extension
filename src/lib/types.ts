@@ -194,6 +194,29 @@ export interface SipStretchState {
   breakEndsAt: number;
 }
 
+// Urge Surfing mirrors the Android UrgeSurfConfig.
+export interface UrgeSurfConfig {
+  /** Shows "I'm struggling" on every block screen. */
+  buttonEnabled: boolean;
+  /** Offers help after several unlocks in a row. */
+  autoOfferEnabled: boolean;
+}
+
+export const URGE_SURF_AUTO_OFFER_UNLOCK_COUNT = 3;
+
+export type CravingActivity = "puzzle" | "move";
+
+/** Local only. One craving ridden out, like Android CravingSessionEntity. */
+export interface CravingSession {
+  at: number;
+  site: string;
+  ratingBefore: number;
+  ratingAfter: number;
+  activity: CravingActivity;
+}
+
+export type UrgeSurfPrompt = "none" | "button" | "offer";
+
 export interface Settings {
   schemaVersion: 2;
   groups: BlockGroup[];
@@ -201,6 +224,7 @@ export interface Settings {
   gentlePrompt: GentlePromptConfig;
   grayscaleGroups: GrayscaleGroup[];
   sipStretch: SipStretchConfig;
+  urgeSurf: UrgeSurfConfig;
   /** Ids of the UI Hider rules that are switched on. */
   hiddenElements: string[];
   /** Sites left out of the usage screen, like Android usageTrackerIgnoredApps. */
@@ -230,6 +254,7 @@ export interface BlockDecision {
   proceedRetryMinutes: number;
   /** When a Sip & Stretch break ends, 0 otherwise. */
   breakEndsAt: number;
+  urgeSurf: UrgeSurfPrompt;
 }
 
 export function defaultWarningScreen(): WarningScreen {
@@ -316,6 +341,10 @@ export function normalizeSettings(value: unknown): Settings {
     gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt),
     grayscaleGroups: Array.isArray(raw.grayscaleGroups) ? raw.grayscaleGroups.map(normalizeGrayscaleGroup) : [],
     sipStretch: normalizeSipStretch(raw.sipStretch),
+    urgeSurf: {
+      buttonEnabled: raw.urgeSurf?.buttonEnabled !== false,
+      autoOfferEnabled: raw.urgeSurf?.autoOfferEnabled !== false,
+    },
     hiddenElements: strings(raw.hiddenElements),
     usageIgnoredSites: strings(raw.usageIgnoredSites),
     usageBackgroundArt: typeof raw.usageBackgroundArt === "string" ? raw.usageBackgroundArt : "",

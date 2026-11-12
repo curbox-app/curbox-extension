@@ -125,6 +125,7 @@ export interface OverlayHandlers {
   onProceed: (minutes?: number) => void;
   onLeave: () => void;
   onEndFocus: () => void;
+  onStruggling: () => void;
 }
 
 export interface Overlay {
@@ -260,6 +261,16 @@ export function createOverlay(): Overlay {
     const actions = document.createElement("div");
     actions.className = "actions";
 
+    const appendUrgeSurf = () => {
+      if (decision.urgeSurf === "none") return;
+      if (decision.urgeSurf === "offer") {
+        actions.appendChild(
+          makeNote("You unlocked blocked sites a few times in a row. That can mean a strong craving. Want help riding it out?"),
+        );
+      }
+      actions.appendChild(makeButton("I'm struggling", handlers.onStruggling, "secondary"));
+    };
+
     if (!decision.canProceed || !warning) {
       if (decision.focusGoalRemainingMs > 0) {
         const minutes = Math.ceil(decision.focusGoalRemainingMs / 60_000);
@@ -272,6 +283,7 @@ export function createOverlay(): Overlay {
         );
       }
       actions.appendChild(makeButton("Okay", handlers.onLeave));
+      appendUrgeSurf();
       body.appendChild(actions);
       return;
     }
@@ -284,6 +296,7 @@ export function createOverlay(): Overlay {
     const proceedButton = makeButton("Proceed", () => {});
     proceedButton.disabled = true;
     actions.append(proceedButton, makeButton("Cancel", handlers.onLeave, "secondary"));
+    appendUrgeSurf();
     body.append(slot, actions);
 
     const proceed = (minutes?: number) => {

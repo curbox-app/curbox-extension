@@ -6,7 +6,7 @@ import type { ContentMessage, PromptReply } from "../lib/messages";
 import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
-import { clearExitedOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
+import { clearExitedOnOpenGrants, pruneGrants, recordProceed, resetUnlockStreak } from "../core/grants";
 import { noteOpen } from "../core/opens";
 import { endBreakIfDue, noteSpan, resetSipStretch } from "../core/sip-stretch";
 import { compiledLists, reconcileLists } from "../core/lists";
@@ -148,7 +148,7 @@ type DecideInput = Omit<Parameters<typeof evaluate>[0], "location" | "now">;
 
 // Everything a verdict depends on, loaded once and shared by every tab in a pass.
 async function loadDecideInput(): Promise<DecideInput> {
-  const [settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch] = await Promise.all([
+  const [settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch, unlockStreak] = await Promise.all([
     get("settings"),
     getUsage(recentDays()),
     get("grants"),
@@ -157,8 +157,9 @@ async function loadDecideInput(): Promise<DecideInput> {
     get("focusLog"),
     compiledLists(),
     get("sipStretch"),
+    get("unlockStreak"),
   ]);
-  return { settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch };
+  return { settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch, unlockStreak };
 }
 
 // Last verdict delivered to each tab, so repeated passes (ticks, settings
@@ -580,6 +581,19 @@ export default defineBackground(() => {
       // The page already hid its overlay, so forget what it was last sent.
       if (tabId != null) delivered.delete(tabId);
       void endSession();
+      return;
+    }
+    if (message.type === "leave") {
+      void resetUnlockStreak().catch(() => undefined);
+      return;
+    }
+    if (message.type === "urgeSurf") {
+      // Leave the blocked page so it is not waiting behind the exercise.
+      if (tabId != null) delivered.delete(tabId);
+      const url = browser.runtime.getURL(`/urge.html?site=${encodeURIComponent(message.domain)}`);
+      void resetUnlockStreak()
+        .then(() => (tabId != null ? browser.tabs.update(tabId, { url }) : browser.tabs.create({ url })))
+        .catch(() => undefined);
       return;
     }
     if (message.type === "prompt") {
