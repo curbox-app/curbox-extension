@@ -82,8 +82,7 @@ Tested with Node.js 26.3.0 and npm 11.16.0 on macOS.
 
 DATA
 No data is collected or transmitted. Usage history, settings and focus history are stored
-only in browser.storage.local. There are no analytics. Encrypted sync code is present in the
-source but no sync service is connected in this build, so it never runs.
+only in browser.storage.local. There are no analytics.
 
 NETWORK REQUESTS
 - api.github.com and raw.githubusercontent.com (repository curbox-app/website_packs):

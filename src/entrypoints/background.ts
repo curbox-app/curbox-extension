@@ -25,13 +25,10 @@ import {
   liveDeltas,
   onSpan,
 } from "../core/usage";
-import { getSyncEngine } from "../lib/sync/engine";
-import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
 import { getLanSync, isLanRequest, type LanRequest, type LanResponse } from "../lib/lan/engine";
 
 let focusedTabId: number | null = null;
 
-const sync = getSyncEngine();
 const lan = getLanSync();
 
 async function handleLan(req: LanRequest): Promise<LanResponse> {
@@ -49,91 +46,6 @@ async function handleLan(req: LanRequest): Promise<LanResponse> {
   } catch (err) {
     return { ok: false, error: String((err as Error)?.message ?? err), status: await lan.status() };
   }
-}
-
-async function handleSync(req: SyncRequest): Promise<SyncResponse> {
-  try {
-    switch (req.type) {
-      case "sync:signUp":
-        await sync.signUp(req.email, req.password);
-        break;
-      case "sync:signIn":
-        await sync.signIn(req.email, req.password);
-        break;
-      case "sync:verifyCode":
-        await sync.verifyCode(req.email, req.code);
-        break;
-      case "sync:resendCode":
-        await sync.resendCode(req.email);
-        break;
-      case "sync:sendReset":
-        await sync.sendReset(req.email);
-        break;
-      case "sync:resetPassword":
-        await sync.resetPassword(req.email, req.code, req.password);
-        break;
-      case "sync:signOut":
-        await sync.signOut();
-        break;
-      case "sync:setPassphrase":
-        await sync.setPassphrase(req.passphrase);
-        break;
-      case "sync:unlock":
-        await sync.unlock(req.passphrase);
-        break;
-      case "sync:makePairingCode":
-        return { ok: true, pairingCode: await sync.makePairingCode(), status: await sync.status() };
-      case "sync:pairWithCode":
-        await sync.pairWithCode(req.payload);
-        break;
-      case "sync:setDeviceName":
-        await sync.setDeviceName(req.name);
-        break;
-      case "sync:syncNow":
-        await sync.syncNow();
-        break;
-      case "sync:subscribe": {
-        const url = await sync.billingUrl("checkout");
-        await browser.tabs.create({ url });
-        break;
-      }
-      case "sync:manageSubscription": {
-        const url = await sync.billingUrl("manage");
-        await browser.tabs.create({ url });
-        break;
-      }
-      case "sync:refreshEntitlement":
-        await sync.refreshEntitlement();
-        break;
-      case "sync:setPreferences":
-        await sync.setPreferences(req.preferences);
-        break;
-      case "sync:status":
-        break;
-    }
-    return { ok: true, status: await sync.status() };
-  } catch (err) {
-    return { ok: false, error: friendlyError(err), status: await sync.status() };
-  }
-}
-
-function friendlyError(err: unknown): string {
-  const raw = String((err as Error)?.message ?? err ?? "");
-  const m = raw.toLowerCase();
-  if (m.includes("invalid login") || (m.includes("invalid") && m.includes("credential")))
-    return "That email or password did not match. Please try again.";
-  if (m.includes("already registered") || m.includes("already been registered"))
-    return "You already have an account with this email. Please sign in instead.";
-  if (m.includes("email not confirmed")) return "Please confirm your email first. I can send you a new code.";
-  if (m.includes("token has expired") || m.includes("otp") || (m.includes("invalid") && m.includes("code")))
-    return "That code did not work. Check it or ask me for a new one.";
-  if (m.includes("for security purposes") || m.includes("rate limit") || m.includes("too many"))
-    return "Please wait a moment, then try again.";
-  if (m.includes("password should be") || (m.includes("at least") && m.includes("character")))
-    return "Please use a password with at least 6 letters or numbers.";
-  if (m.includes("failed to fetch") || m.includes("network") || m.includes("timeout") || m.includes("offline"))
-    return "I cannot reach the internet right now. Check your connection and try again.";
-  return raw || "Something went wrong. Please try again.";
 }
 
 // A schedule can start the evening before, so limits and prompts only ever
@@ -448,8 +360,6 @@ export default defineBackground(() => {
     void openAppWindow();
   });
 
-  // Call registerSyncProvider before this when a remote sync service is connected.
-  void sync.start().catch(() => undefined);
   void lan.start().catch(() => undefined);
 
   // Smallest interval the API allows, so a closed lid stops counting promptly.
@@ -469,7 +379,6 @@ export default defineBackground(() => {
           await evaluateFocused();
         })
         .catch(() => undefined);
-      void sync.pullSinceCursor().catch(() => undefined);
       // Decides itself whether the phone is due; most ticks leave it asleep.
       void lan.onTick().catch(() => undefined);
     } else if (alarm.name === "focus-end") {
@@ -608,12 +517,6 @@ export default defineBackground(() => {
         .catch(() => sendResponse(false));
       return true;
     }
-  });
-
-  browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-    if (!isSyncRequest(message)) return;
-    void handleSync(message).then(sendResponse);
-    return true;
   });
 
   browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {

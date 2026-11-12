@@ -123,9 +123,6 @@ Define what happens on the warning screen when you try to open a blocked site. T
 
 Videos and music behind the warning screen pause, and they cannot start again until you are through.
 
-#### Sync
-Encrypted sync is not connected in this build. Everything stays in this browser. The encryption and merge logic is already in place for a future sync service.
-
 ### Supported Browsers
 
 | Browser | Build | Notes |
@@ -187,7 +184,6 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before working on the project.
 * All my beloved donors and sponsors
 * Everyone who contributes to the [website packs](https://github.com/curbox-app/website_packs)
 * [WXT](https://wxt.dev): for making cross browser extensions pleasant to build
-* [node-qrcode](https://github.com/soldair/node-qrcode): for device pairing codes
 
 ### Contact
 

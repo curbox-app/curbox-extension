@@ -40,8 +40,8 @@ export default defineConfig({
       },
     ],
     // data_collection_permissions is read from Firefox 140 and Firefox for
-    // Android 142, the floor here. Curbox collects no data, and sync is not
-    // connected in this build, so there is nothing to declare.
+    // Android 142, the floor here. Curbox collects no data, so there is
+    // nothing to declare.
     ...(browser === "firefox" && {
       browser_specific_settings: {
         gecko: {
