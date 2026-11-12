@@ -54,7 +54,11 @@ export interface UsageTracker {
   /** Unpersisted usage, including the span still being counted. Changes nothing. */
   liveDeltas(): Promise<Array<[DateKey, DayUsage]>>;
   activeTabId(): number | null;
+  /** Called with each span of time banked for a site. */
+  onSpan(listener: SpanListener): void;
 }
+
+export type SpanListener = (location: SiteLocation, from: number, to: number) => void;
 
 export function createUsageTracker(
   session: SessionArea | undefined = browser.storage?.session as SessionArea | undefined,
@@ -75,6 +79,7 @@ export function createUsageTracker(
   // so frequent tab/visibility changes only touch memory, never storage.local.
   let pending = new Map<DateKey, DayUsage>();
   let prunedBefore: DateKey | null = null;
+  const spanListeners: SpanListener[] = [];
 
   // We only count while a tab is tracked, its window holds OS focus, the page
   // reports itself visible, and the user is present (or provably listening).
@@ -106,6 +111,8 @@ export function createUsageTracker(
     for (const slice of sliceSpanByHour(from, now)) {
       bank(slice.key, active.domain, active.path, slice.ms, slice.hour);
     }
+    const location = { domain: active.domain, path: active.path };
+    for (const listener of spanListeners) listener(location, from, now);
   }
 
   // Open or close the counting window as the gates change.
@@ -260,6 +267,7 @@ export function createUsageTracker(
     persist: () => enqueue(doPersist),
     liveDeltas: () => queue.then(peek),
     activeTabId: () => active?.tabId ?? null,
+    onSpan: (listener) => void spanListeners.push(listener),
   };
 }
 
@@ -275,4 +283,5 @@ export const {
   persist,
   liveDeltas,
   activeTabId,
+  onSpan,
 } = tracker;

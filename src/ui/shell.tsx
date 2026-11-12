@@ -9,6 +9,7 @@ import { Onboarding } from "./onboarding";
 import { GentlePromptPanel } from "./prompts";
 import { GrayscalePanel } from "./grayscale";
 import { UiHiderPanel } from "./ui-hider";
+import { SipStretchPanel } from "./sip-stretch";
 import type { Settings } from "../lib/types";
 
 // Sync and its QR code library are rarely opened, so load them on demand.
@@ -16,7 +17,7 @@ const AccountPanel = lazy(() => import("./account/AccountPanel").then((m) => ({ 
 const LanPanel = lazy(() => import("./account/LanPanel").then((m) => ({ default: m.LanPanel })));
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "hider" | "prompts" | "grayscale" | "sync" | "lan" | null;
+type ReducerPage = "website" | "hider" | "prompts" | "sipStretch" | "grayscale" | "sync" | "lan" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -157,6 +158,9 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                     onChange={(gentlePrompt) => commit({ ...draft, gentlePrompt })}
                   />
                 )}
+                {reducerPage === "sipStretch" && (
+                  <SipStretchPanel config={draft.sipStretch} onChange={(sipStretch) => commit({ ...draft, sipStretch })} />
+                )}
                 {reducerPage === "grayscale" && (
                   <GrayscalePanel
                     groups={draft.grayscaleGroups}
@@ -226,6 +230,18 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="flex-1">
           <b className="block text-base text-ink">Gentle Prompts</b>
           <small className="text-muted">Small live notes that float over the sites you pick</small>
+        </span>
+        <span className="text-faint">›</span>
+      </button>
+      <button onClick={() => onOpen("sipStretch")} className="card flex items-center gap-4 p-5 text-left">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-on-tertiary">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3.5c3 3.6 5.5 6.8 5.5 10a5.5 5.5 0 0 1-11 0c0-3.2 2.5-6.4 5.5-10z" />
+          </svg>
+        </span>
+        <span className="flex-1">
+          <b className="block text-base text-ink">Sip &amp; Stretch</b>
+          <small className="text-muted">Take a short break to drink water and move after long use.</small>
         </span>
         <span className="text-faint">›</span>
       </button>

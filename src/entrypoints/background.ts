@@ -1,13 +1,14 @@
 import { defineBackground, browser } from "#imports";
 import { enableStorageCache, get, getUsage, migrateSettings, watch } from "../lib/storage";
 import { parseLocation, type SiteLocation } from "../lib/url";
-import type { BlockDecision, FocusSession, Settings } from "../lib/types";
+import type { BlockDecision, FocusSession, Settings, SipStretchState } from "../lib/types";
 import type { ContentMessage, PromptReply } from "../lib/messages";
 import { sendToTab } from "../lib/messages";
 import { evaluate, PASS } from "../core/blocker";
 import { activeSession, endSession } from "../core/focus";
 import { clearExitedOnOpenGrants, pruneGrants, recordProceed } from "../core/grants";
 import { noteOpen } from "../core/opens";
+import { endBreakIfDue, noteSpan, resetSipStretch } from "../core/sip-stretch";
 import { compiledLists, reconcileLists } from "../core/lists";
 import { groupMatches } from "../lib/match";
 import { promptValues } from "../lib/prompt";
@@ -22,6 +23,7 @@ import {
   setMachineState,
   setTabAudible,
   liveDeltas,
+  onSpan,
 } from "../core/usage";
 import { getSyncEngine } from "../lib/sync/engine";
 import { isSyncRequest, type SyncRequest, type SyncResponse } from "../lib/sync/types";
@@ -146,7 +148,7 @@ type DecideInput = Omit<Parameters<typeof evaluate>[0], "location" | "now">;
 
 // Everything a verdict depends on, loaded once and shared by every tab in a pass.
 async function loadDecideInput(): Promise<DecideInput> {
-  const [settings, usage, grants, proceeds, focus, focusLog, lists] = await Promise.all([
+  const [settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch] = await Promise.all([
     get("settings"),
     getUsage(recentDays()),
     get("grants"),
@@ -154,8 +156,9 @@ async function loadDecideInput(): Promise<DecideInput> {
     activeSession(),
     get("focusLog"),
     compiledLists(),
+    get("sipStretch"),
   ]);
-  return { settings, usage, grants, proceeds, focus, focusLog, lists };
+  return { settings, usage, grants, proceeds, focus, focusLog, lists, sipStretch };
 }
 
 // Last verdict delivered to each tab, so repeated passes (ticks, settings
@@ -297,6 +300,19 @@ function scheduleGrantEnd(grants: Record<string, number>): void {
   const now = Date.now();
   const upcoming = Object.values(grants).filter((until) => until > now);
   if (upcoming.length > 0) browser.alarms.create("grant-end", { when: Math.min(...upcoming) });
+}
+
+// Every banked span rewrites the Sip & Stretch count, so only a new break end
+// reschedules the alarm and re-evaluates the tabs.
+let breakEndsAt: number | null = null;
+
+function onSipStretchState(state: SipStretchState): void {
+  if (state.breakEndsAt === breakEndsAt) return;
+  const first = breakEndsAt === null;
+  breakEndsAt = state.breakEndsAt;
+  void browser.alarms.clear("sip-stretch-end");
+  if (breakEndsAt > 0) browser.alarms.create("sip-stretch-end", { when: Math.max(Date.now() + 1000, breakEndsAt) });
+  if (!first) scheduleAllTabs();
 }
 
 // The OS tells us directly when the machine goes idle or the screen locks (lid
@@ -457,6 +473,8 @@ export default defineBackground(() => {
       void lan.onTick().catch(() => undefined);
     } else if (alarm.name === "focus-end") {
       void activeSession().then(() => scheduleAllTabs(), () => undefined);
+    } else if (alarm.name === "sip-stretch-end") {
+      void endBreakIfDue().catch(() => undefined);
     } else if (alarm.name === "grant-end") {
       void pruneGrants().then(() => scheduleAllTabs(), () => undefined);
     }
@@ -465,6 +483,8 @@ export default defineBackground(() => {
   void activeSession().then(scheduleFocusEnd);
   void get("settings").then(reconcileLists);
   void get("grants").then(scheduleGrantEnd);
+  void get("sipStretch").then(onSipStretchState);
+  onSpan((location, from, to) => void noteSpan(location, from, to).catch(() => undefined));
 
   // On worker start, only begin tracking if the user has accepted the terms.
   // If not yet accepted, the watch handler below starts tracking once they do.
@@ -484,8 +504,10 @@ export default defineBackground(() => {
       void lan.onLocalFocusChanged().catch(() => undefined);
     }
     if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
+    if ("sipStretch" in changed && changed.sipStretch) onSipStretchState(changed.sipStretch);
     if ("settings" in changed && changed.settings) {
       void reconcileLists(changed.settings).catch(() => undefined);
+      if (!changed.settings.sipStretch.enabled) void resetSipStretch().catch(() => undefined);
       void lan.onLocalSettingsChanged(changed.settings.focusGroups ?? []).catch(() => undefined);
     }
     if ("focus" in changed || "focusLog" in changed || "settings" in changed || "wordLists" in changed) {

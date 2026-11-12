@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatPrompt, promptValues } from "./prompt";
 import { dateKey } from "./time";
-import { defaultGentlePrompt, newGroup, type Settings, type UsageHistory } from "./types";
+import { defaultGentlePrompt, newGroup, normalizeSettings, type Settings, type UsageHistory } from "./types";
 
 const NOW = new Date(2026, 9, 27, 15, 0).getTime();
 const TODAY = dateKey(new Date(NOW));
@@ -12,14 +12,9 @@ function settings(): Settings {
   const social = newGroup("Social");
   social.matchers = ["instagram.com"];
   return {
-    schemaVersion: 2,
+    ...normalizeSettings({}),
     groups: [social],
-    focusGroups: [],
     gentlePrompt: { ...defaultGentlePrompt(), sites: ["youtube.com", "instagram.com"] },
-    grayscaleGroups: [],
-    hiddenElements: [],
-    usageIgnoredSites: [],
-    usageBackgroundArt: "",
   };
 }
 

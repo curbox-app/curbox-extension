@@ -85,3 +85,9 @@ export function msToClock(ms: number): string {
   const ss = `${s}`.padStart(2, "0");
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/** A countdown like Android's timers: whole seconds rounded up, as m:ss. */
+export function countdownClock(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(totalSec / 60)}:${`${totalSec % 60}`.padStart(2, "0")}`;
+}

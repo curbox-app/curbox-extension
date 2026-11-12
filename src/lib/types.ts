@@ -175,12 +175,32 @@ export interface GrayscaleGroup {
   schedule: DaySchedule;
 }
 
+// Sip & Stretch mirrors the Android SipStretchConfig: after long use of the
+// chosen sites, every site pauses for a short break.
+export interface SipStretchConfig {
+  enabled: boolean;
+  sites: string[];
+  usageLimitMinutes: number;
+  breakMinutes: number;
+}
+
+export const SIP_STRETCH = { minUsageMinutes: 5, maxUsageMinutes: 120, usageStep: 5, minBreakMinutes: 1, maxBreakMinutes: 30 };
+
+/** Local only. Time counted toward the next break and when the current one ends. */
+export interface SipStretchState {
+  usedMs: number;
+  /** When time on the chosen sites last stopped counting, 0 when unknown. */
+  lastAt: number;
+  breakEndsAt: number;
+}
+
 export interface Settings {
   schemaVersion: 2;
   groups: BlockGroup[];
   focusGroups: FocusGroup[];
   gentlePrompt: GentlePromptConfig;
   grayscaleGroups: GrayscaleGroup[];
+  sipStretch: SipStretchConfig;
   /** Ids of the UI Hider rules that are switched on. */
   hiddenElements: string[];
   /** Sites left out of the usage screen, like Android usageTrackerIgnoredApps. */
@@ -189,8 +209,8 @@ export interface Settings {
   usageBackgroundArt: string;
 }
 
-export type BlockSource = "group" | "focus";
-export type BlockReason = "time" | "usage" | "on-open" | "focus" | "";
+export type BlockSource = "group" | "focus" | "break";
+export type BlockReason = "time" | "usage" | "on-open" | "focus" | "break" | "";
 
 export interface BlockDecision {
   blocked: boolean;
@@ -208,6 +228,8 @@ export interface BlockDecision {
   proceedsLeft: number;
   /** Minutes until the proceed limit lets me through again, 0 when it does now. */
   proceedRetryMinutes: number;
+  /** When a Sip & Stretch break ends, 0 otherwise. */
+  breakEndsAt: number;
 }
 
 export function defaultWarningScreen(): WarningScreen {
@@ -293,6 +315,7 @@ export function normalizeSettings(value: unknown): Settings {
     focusGroups,
     gentlePrompt: normalizeGentlePrompt(raw.gentlePrompt),
     grayscaleGroups: Array.isArray(raw.grayscaleGroups) ? raw.grayscaleGroups.map(normalizeGrayscaleGroup) : [],
+    sipStretch: normalizeSipStretch(raw.sipStretch),
     hiddenElements: strings(raw.hiddenElements),
     usageIgnoredSites: strings(raw.usageIgnoredSites),
     usageBackgroundArt: typeof raw.usageBackgroundArt === "string" ? raw.usageBackgroundArt : "",
@@ -301,6 +324,29 @@ export function normalizeSettings(value: unknown): Settings {
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+export function defaultSipStretch(): SipStretchConfig {
+  return { enabled: false, sites: [], usageLimitMinutes: 30, breakMinutes: 5 };
+}
+
+function normalizeSipStretch(value: Partial<SipStretchConfig> | undefined): SipStretchConfig {
+  const defaults = defaultSipStretch();
+  const config = value ?? {};
+  return {
+    enabled: config.enabled === true,
+    sites: strings(config.sites),
+    usageLimitMinutes: clamp(
+      Math.round(finitePositive(config.usageLimitMinutes, defaults.usageLimitMinutes)),
+      SIP_STRETCH.minUsageMinutes,
+      SIP_STRETCH.maxUsageMinutes,
+    ),
+    breakMinutes: clamp(
+      Math.round(finitePositive(config.breakMinutes, defaults.breakMinutes)),
+      SIP_STRETCH.minBreakMinutes,
+      SIP_STRETCH.maxBreakMinutes,
+    ),
+  };
 }
 
 function normalizeGrayscaleGroup(group: Partial<GrayscaleGroup>): GrayscaleGroup {

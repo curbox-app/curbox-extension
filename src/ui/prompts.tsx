@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 import type { BlockGroup, GentlePromptConfig } from "../lib/types";
 import { PROMPT_TEXT_SIZE } from "../lib/types";
 import { formatPrompt, promptLook, PROMPT_VARIABLES, type PromptValues } from "../lib/prompt";
 import { MatcherList, Segmented, Slider, Toggle, inputCls } from "./components";
+import { useSettledDraft } from "./useDraft";
 
 const PREVIEW_SCALE = 0.7;
 
@@ -124,21 +125,7 @@ export function GentlePromptPanel({
   onChange: (config: GentlePromptConfig) => void;
 }) {
   const messageRef = useRef<HTMLTextAreaElement>(null);
-  const [draft, setDraft] = useState(config);
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Sliders and color pickers fire on every move, so save once they settle.
-  const patch = (p: Partial<GentlePromptConfig>) => {
-    const next = { ...draft, ...p };
-    setDraft(next);
-    if (pending.current) clearTimeout(pending.current);
-    pending.current = setTimeout(() => {
-      pending.current = null;
-      onChange(next);
-    }, 300);
-  };
-  useEffect(() => {
-    if (!pending.current) setDraft(config);
-  }, [config]);
+  const [draft, patch] = useSettledDraft(config, onChange);
   const preview = formatPrompt(draft.message, sampleValues(groups), 83_000);
   const groupNames = [...new Set(groups.map((g) => g.name.trim()).filter(Boolean))];
   const variables = [

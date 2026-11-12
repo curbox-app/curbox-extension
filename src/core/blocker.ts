@@ -12,6 +12,7 @@ import type {
   FocusSession,
   ProceedRecord,
   Settings,
+  SipStretchState,
   TimeRange,
   UsageHistory,
   WarningScreen,
@@ -27,6 +28,7 @@ interface EvalInput {
   grants: Record<string, number>;
   proceeds: Record<string, ProceedRecord>;
   lists?: CompiledLists;
+  sipStretch?: SipStretchState;
 }
 
 interface ActiveWindow {
@@ -48,6 +50,7 @@ export const PASS: BlockDecision = {
   focusGoalGroupName: "",
   proceedsLeft: -1,
   proceedRetryMinutes: 0,
+  breakEndsAt: 0,
 };
 
 function focusBlocks(location: SiteLocation, focus: FocusSession): boolean {
@@ -207,7 +210,19 @@ function defaultMessage(group: BlockGroup, reason: BlockReason): string {
 }
 
 export function evaluate(input: EvalInput): BlockDecision {
-  const { location, settings, focus, usage, focusLog, now, grants, proceeds, lists } = input;
+  const { location, settings, focus, usage, focusLog, now, grants, proceeds, lists, sipStretch } = input;
+
+  // Android blocks every app during a Sip & Stretch break.
+  if (settings.sipStretch.enabled && sipStretch && sipStretch.breakEndsAt > now) {
+    return {
+      ...PASS,
+      blocked: true,
+      source: "break",
+      reason: "break",
+      message: "Time for a break",
+      breakEndsAt: sipStretch.breakEndsAt,
+    };
+  }
 
   if (focus && focusBlocks(location, focus)) {
     return {
@@ -245,6 +260,7 @@ export function evaluate(input: EvalInput): BlockDecision {
       focusGoalGroupName: goalGroup?.name ?? "",
       proceedsLeft: status.left,
       proceedRetryMinutes: status.retryMinutes,
+      breakEndsAt: 0,
     };
   }
 

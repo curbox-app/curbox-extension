@@ -1,5 +1,5 @@
 import { browser } from "#imports";
-import type { DateKey, DayUsage, FocusLogEntry, FocusSession, ProceedRecord, Settings, SiteOpens, UsageHistory } from "./types";
+import type { DateKey, DayUsage, FocusLogEntry, FocusSession, ProceedRecord, Settings, SipStretchState, SiteOpens, UsageHistory } from "./types";
 import { normalizeSettings } from "./types";
 import type { StoredList } from "./word-lists";
 
@@ -12,6 +12,7 @@ interface StoreShape {
   termsAccepted: boolean;
   opens: SiteOpens;
   wordLists: Record<string, StoredList>; // local only, see word-lists.ts
+  sipStretch: SipStretchState;
 }
 
 export const DEFAULT_SETTINGS: Settings = normalizeSettings({});
@@ -25,6 +26,7 @@ const DEFAULTS: { [K in keyof StoreShape]: () => StoreShape[K] } = {
   termsAccepted: () => false,
   opens: () => ({ last: "", days: {} }),
   wordLists: () => ({}),
+  sipStretch: () => ({ usedMs: 0, lastAt: 0, breakEndsAt: 0 }),
 };
 
 // Usage is stored one day per key, so the tracker's tick only rewrites today
