@@ -1,13 +1,3 @@
-import { CODE_ALPHABET, CODE_LENGTH } from "./crypto";
-
-/** What the phone scans from the browser: curboxsync://pair?c=CODE */
-export const pairingLink = (code: string) => `curboxsync://pair?c=${code}`;
-
-export function newPairingCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
-  return [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
-}
-
 // Home routers hand out a handful of ranges; these cover most of them.
 const COMMON_SUBNETS = [
   "192.168.1", "192.168.0", "192.168.31", "192.168.29", "192.168.2", "192.168.10", "192.168.100",

@@ -257,8 +257,8 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
       <button onClick={() => onOpen("lan")} className="card flex items-center gap-4 p-5 text-left">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">⌁</span>
         <span className="flex-1">
-          <b className="block text-base text-ink">Phone over WiFi</b>
-          <small className="text-muted">Share focus mode with Curbox on your phone</small>
+          <b className="block text-base text-ink">Phone sync</b>
+          <small className="text-muted">Share focus mode with Curbox on your phone, over WiFi or Tailscale</small>
         </span>
         <span className="text-faint">›</span>
       </button>

@@ -5,6 +5,7 @@ import { todayKey } from "../time";
 import { newFocusGroup } from "../types";
 import { open, REQUEST_AAD, responseAad, seal, deriveLanKey } from "./crypto";
 import { LanSync } from "./engine";
+import { codeKey, ecdhPair, ecdhShared, encodeShort, formatShort, pairProof, sameProof, sessionKey } from "./shortcode";
 import type { PhoneState } from "./reconcile";
 
 const CODE = "ABCDEFGHJKMN";
@@ -40,6 +41,23 @@ function fakePhone(key: Uint8Array) {
     return new Response(await seal(key, responseAad(req.id), JSON.stringify(reply)), { status: 200 });
   });
   return { phone, calls, fetchMock, usage, net };
+}
+
+// The phone's side of the short code handshake, as CurboxSync does it.
+async function pairingPhone(code: string) {
+  const { keys, pub } = await ecdhPair();
+  const kCode = await codeKey(code);
+  const self = {
+    key: null as Uint8Array | null,
+    async handle(init?: RequestInit): Promise<Response> {
+      if (!init || init.method !== "POST") return new Response(JSON.stringify({ pub }));
+      const req = JSON.parse(String(init.body)) as { pub: string; proof: string };
+      if (!sameProof(req.proof, await pairProof(kCode, "b", pub, req.pub))) return new Response("", { status: 401 });
+      self.key = await sessionKey(await ecdhShared(keys.privateKey, req.pub), kCode, pub, req.pub);
+      return new Response(JSON.stringify({ proof: await pairProof(kCode, "p", pub, req.pub), id: "phone1", name: "Pixel" }));
+    },
+  };
+  return self;
 }
 
 describe("lan engine", () => {
@@ -81,27 +99,37 @@ describe("lan engine", () => {
     expect((await lan.status()).message).toContain("I added group");
   });
 
-  it("finds the phone on the WiFi once it scans the browser code", async () => {
-    let phone: ReturnType<typeof fakePhone> | null = null;
-    let syncOn = false;
-    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-      if (!syncOn || !url.startsWith("http://192.168.1.77:")) throw new TypeError("unreachable");
-      if (url.endsWith("/v1/hello")) return new Response('{"app":"curbox-sync","proto":1}');
-      if (!phone) return new Response("", { status: 401 });
-      return phone.fetchMock(url, init);
+  it("pairs with the short code the phone shows", async () => {
+    const shown = encodeShort(1, 77, 4321);
+    const phone = await pairingPhone(shown);
+    let sealed: ReturnType<typeof fakePhone> | null = null;
+    const knocked: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      knocked.push(url);
+      if (!url.startsWith("http://192.168.1.77:")) throw new TypeError("unreachable");
+      if (url.endsWith("/v1/pair")) {
+        const res = await phone.handle(init);
+        if (phone.key) sealed = fakePhone(phone.key);
+        return res;
+      }
+      return sealed!.fetchMock(url, init!);
     });
     const lan = new LanSync();
-    await lan.startPairing("192.168.1.9");
-    const link = (await lan.status()).pairingLink!;
-    const code = new URL(link.replace("curboxsync://", "http://")).searchParams.get("c")!;
-    // The phone turns sync on after the first sweep went by, then scans a moment later.
-    await new Promise((r) => setTimeout(r, 300));
-    syncOn = true;
-    await new Promise((r) => setTimeout(r, 600));
-    expect((await lan.status()).paired).toBe(false);
-    phone = fakePhone(await deriveLanKey(code));
-    for (let i = 0; i < 40 && !(await lan.status()).paired; i++) await new Promise((r) => setTimeout(r, 100));
-    expect((await lan.status()).address).toBe("192.168.1.77:47621");
+    await expect(lan.pairCode(encodeShort(1, 77, 1234), "192.168.1.9")).rejects.toThrow(/did not match/);
+    await lan.pairCode(formatShort(shown).toLowerCase(), "192.168.1.9");
+    const status = await lan.status();
+    expect(status.paired).toBe(true);
+    expect(status.address).toBe("192.168.1.77:47621");
+    // Goes straight to the address in the code: no network sweep.
+    expect(knocked.filter((u) => u.endsWith("/v1/hello"))).toHaveLength(0);
+  });
+
+  it("says when Curbox Sync is not open on the phone", async () => {
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (!url.startsWith("http://192.168.1.77:")) throw new TypeError("unreachable");
+      return new Response("", { status: 403 });
+    });
+    await expect(new LanSync().pairCode(encodeShort(1, 77, 9), null)).rejects.toThrow(/Open Curbox Sync/);
   });
 
   it("starts focus on the phone when the browser starts it", async () => {
@@ -156,32 +184,5 @@ describe("lan engine", () => {
     const status = await lan.status();
     expect(status.paired).toBe(true);
     expect(status.lastOkAt).toBeGreaterThan(0);
-    expect(status.pairingLink).toBeNull();
-  });
-
-  it("adds a new network by scanning while still paired", async () => {
-    const lan = new LanSync();
-    await lan.pair("192.168.1.20", CODE);
-    // The office WiFi is new: the phone is on 10.0.0.42 and only takes a freshly scanned code.
-    let office: ReturnType<typeof fakePhone> | null = null;
-    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-      if (!url.startsWith("http://10.0.0.42:")) throw new TypeError("unreachable");
-      if (url.endsWith("/v1/hello")) return new Response('{"app":"curbox-sync","proto":2}');
-      if (!office) return new Response("", { status: 401 });
-      return office.fetchMock(url, init);
-    });
-    await lan.startPairing("10.0.0.9", true);
-    const status = await lan.status();
-    expect(status.paired).toBe(true);
-    expect(status.adding).toBe(true);
-    const code = new URL(status.pairingLink!.replace("curboxsync://", "http://")).searchParams.get("c")!;
-    office = fakePhone(await deriveLanKey(code));
-    office.net.id = "10.0.0.0/24@10.0.0.1";
-    office.net.label = "Office";
-    for (let i = 0; i < 50 && (await lan.status()).address !== "10.0.0.42:47621"; i++) await new Promise((r) => setTimeout(r, 100));
-    const after = await lan.status();
-    expect(after.address).toBe("10.0.0.42:47621");
-    expect(after.adding).toBe(false);
-    expect(after.places.map((p) => p.label).sort()).toEqual(["Home", "Office"]);
   });
 });

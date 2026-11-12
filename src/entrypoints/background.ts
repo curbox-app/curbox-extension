@@ -34,15 +34,14 @@ const lan = getLanSync();
 
 async function handleLan(req: LanRequest): Promise<LanResponse> {
   try {
-    if (req.type === "lan:pair") await lan.pair(req.address, req.code);
-    else if (req.type === "lan:startPairing") await lan.startPairing(req.hint, req.adding);
+    if (req.type === "lan:pairCode") await lan.pairCode(req.code, req.hint);
     else if (req.type === "lan:hint") {
       await lan.setHint(req.hint);
       void lan.syncNow().catch(() => undefined);
     }
-    else if (req.type === "lan:cancelPairing") await lan.cancelPairing();
     else if (req.type === "lan:unpair") await lan.unpair();
     else if (req.type === "lan:syncNow") await lan.syncNow();
+    else if (req.type === "lan:search") await lan.searchNow();
     else if (req.type === "lan:forgetPlace") await lan.forgetPlace(req.id);
     return { ok: true, status: await lan.status() };
   } catch (err) {
@@ -305,6 +304,8 @@ function scheduleGrantEnd(grants: Record<string, number>): void {
 // "active", unless the tab is audibly playing, which proves passive use.
 function applyIdleState(state: "active" | "idle" | "locked"): void {
   void setMachineState(state);
+  // Phone sync asks the phone only while someone is here, and catches up on return.
+  void lan.onMachineState(state).catch(() => undefined);
 }
 
 const PANEL_WIDTH = 480;
@@ -452,7 +453,8 @@ export default defineBackground(() => {
         })
         .catch(() => undefined);
       void sync.pullSinceCursor().catch(() => undefined);
-      void lan.syncNow().catch(() => undefined);
+      // Decides itself whether the phone is due; most ticks leave it asleep.
+      void lan.onTick().catch(() => undefined);
     } else if (alarm.name === "focus-end") {
       void activeSession().then(() => scheduleAllTabs(), () => undefined);
     } else if (alarm.name === "grant-end") {
@@ -482,7 +484,10 @@ export default defineBackground(() => {
       void lan.onLocalFocusChanged().catch(() => undefined);
     }
     if ("grants" in changed) scheduleGrantEnd(changed.grants ?? {});
-    if ("settings" in changed && changed.settings) void reconcileLists(changed.settings).catch(() => undefined);
+    if ("settings" in changed && changed.settings) {
+      void reconcileLists(changed.settings).catch(() => undefined);
+      void lan.onLocalSettingsChanged(changed.settings.focusGroups ?? []).catch(() => undefined);
+    }
     if ("focus" in changed || "focusLog" in changed || "settings" in changed || "wordLists" in changed) {
       scheduleAllTabs(changed.settings);
     }
