@@ -106,7 +106,7 @@ export function LanPanel() {
 
   const header = (
     <div>
-      <h1 className="font-display text-5xl text-ink">Phone sync</h1>
+      <h1 className="font-display text-5xl text-ink">Sync</h1>
       <p className="mt-1 text-sm text-muted">
         Keep focus mode in step with Curbox on your Android phone. Everything stays between your devices.
       </p>

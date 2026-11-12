@@ -321,7 +321,7 @@ function onSipStretchState(state: SipStretchState): void {
 // "active", unless the tab is audibly playing, which proves passive use.
 function applyIdleState(state: "active" | "idle" | "locked"): void {
   void setMachineState(state);
-  // Phone sync asks the phone only while someone is here, and catches up on return.
+  // Sync asks the phone only while someone is here, and catches up on return.
   void lan.onMachineState(state).catch(() => undefined);
 }
 

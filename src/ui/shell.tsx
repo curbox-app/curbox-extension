@@ -13,12 +13,11 @@ import { SipStretchPanel } from "./sip-stretch";
 import { UrgeSurfPanel } from "./urge-surf-panel";
 import type { Settings } from "../lib/types";
 
-// Sync and its QR code library are rarely opened, so load them on demand.
-const AccountPanel = lazy(() => import("./account/AccountPanel").then((m) => ({ default: m.AccountPanel })));
+// Sync is rarely opened, so load it on demand.
 const LanPanel = lazy(() => import("./account/LanPanel").then((m) => ({ default: m.LanPanel })));
 
 type Tab = "usage" | "focus" | "reducers" | "info";
-type ReducerPage = "website" | "hider" | "prompts" | "sipStretch" | "urgeSurf" | "grayscale" | "sync" | "lan" | null;
+type ReducerPage = "website" | "hider" | "prompts" | "sipStretch" | "urgeSurf" | "grayscale" | "lan" | null;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "usage", label: "Usage" },
@@ -178,11 +177,6 @@ export function AppShell({ variant }: { variant: "popup" | "page" }) {
                     onChange={(hiddenElements) => commit({ ...draft, hiddenElements })}
                   />
                 )}
-                {reducerPage === "sync" && (
-                  <Suspense fallback={null}>
-                    <AccountPanel />
-                  </Suspense>
-                )}
                 {reducerPage === "lan" && (
                   <Suspense fallback={null}>
                     <LanPanel />
@@ -279,18 +273,10 @@ function ReducersHome({ onOpen }: { onOpen: (page: Exclude<ReducerPage, null>) =
         <span className="text-faint">›</span>
       </button>
       <p className="label mt-3">Across devices</p>
-      <button onClick={() => onOpen("sync")} className="card flex items-center gap-4 p-5 text-left">
+      <button onClick={() => onOpen("lan")} className="card flex items-center gap-4 p-5 text-left">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">↻</span>
         <span className="flex-1">
           <b className="block text-base text-ink">Sync</b>
-          <small className="text-muted">Keep settings and usage in step</small>
-        </span>
-        <span className="text-faint">›</span>
-      </button>
-      <button onClick={() => onOpen("lan")} className="card flex items-center gap-4 p-5 text-left">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary-chip text-2xl text-on-tertiary">⌁</span>
-        <span className="flex-1">
-          <b className="block text-base text-ink">Phone sync</b>
           <small className="text-muted">Share focus mode with Curbox on your phone, over WiFi or Tailscale</small>
         </span>
         <span className="text-faint">›</span>
