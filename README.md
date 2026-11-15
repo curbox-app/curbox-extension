@@ -2,11 +2,19 @@
   <img src="public/icon/icon.svg" width="96" height="96" alt="Curbox" />
   <h2>Curbox Browser</h2>
 
+  <p>
+    <a href="https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie"><img src="https://img.shields.io/badge/Download%20from-Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Download from Chrome Web Store" height="40"></a>
+    &nbsp;
+    <a href="https://addons.mozilla.org/en-US/firefox/addon/curbox/"><img src="https://img.shields.io/badge/Download%20from-Firefox%20Add--ons-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white" alt="Download from Firefox Add-ons" height="40"></a>
+  </p>
+
+  <p><b>Mindful friction for the web. Honest usage stats, gentle blocking and focus sessions, all on your device.</b></p>
+
   [![GitHub contributors](https://img.shields.io/github/contributors/curbox-app/curbox-extension)](https://github.com/curbox-app/curbox-extension/graphs/contributors)
   [![Discord Server](https://img.shields.io/badge/Discord%20Server-white?style=flat&logo=discord)](https://discord.com/invite/Vs9mwUtuCN)
   [![Telegram Group](https://img.shields.io/badge/Telegram%20Group-blue?style=flat&logo=telegram)](https://t.me/curboxapp)
-  [![Chromium](https://img.shields.io/badge/Chromium-MV3-444?logo=googlechrome&logoColor=white)](#chrome-brave-edge-helium-and-other-chromium-browsers)
-  [![Firefox](https://img.shields.io/badge/Firefox-MV2-444?logo=firefoxbrowser&logoColor=white)](#firefox)
+  [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/pibbkglphadkglpndilhefjkjpojmlie?label=Chrome&logo=googlechrome&logoColor=white&color=444)](https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie)
+  [![Mozilla Add-on](https://img.shields.io/amo/v/curbox?label=Firefox&logo=firefoxbrowser&logoColor=white&color=444)](https://addons.mozilla.org/en-US/firefox/addon/curbox/)
 
 </div>
 
@@ -38,12 +46,22 @@ Most screen time tools are closed source, which raises fair questions about whet
 ### Platforms
 
 - Android: [curbox-app/curbox-android](https://github.com/curbox-app/curbox-android)
-- Browser extension (this repository): Chrome, Brave, Edge, Helium and other Chromium browsers, plus Firefox
+- Browser extension (this repository): [Chrome Web Store](https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie) for Chrome, Brave, Edge, Helium and other Chromium browsers, and [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/curbox/)
 - iOS (coming soon)
 
 ### How to install
 
-Curbox Browser is not on the browser stores yet, so for now you build and load it yourself. It takes about two minutes. You can also [read the docs](https://curbox.app/docs) for step by step instructions.
+The easiest way is to install Curbox from your browser's store. Updates arrive automatically.
+
+| Browser | Install |
+| --- | --- |
+| Chrome, Brave, Edge, Helium and other Chromium browsers | [Chrome Web Store](https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie) |
+| Firefox (desktop and Android) | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/curbox/) |
+
+You can also [read the docs](https://curbox.app/docs) for step by step instructions.
+
+<details>
+<summary><b>Build from source</b></summary>
 
 ```bash
 npm install            # install dependencies
@@ -65,6 +83,8 @@ npm run build:firefox  # Firefox build   ->  .output/firefox-mv2
 3. Click **Load Temporary Add-on** and choose any file inside `.output/firefox-mv2`.
 
 > Firefox removes temporary add-ons when you restart the browser.
+
+</details>
 
 The first time you open Curbox it walks you through the same introduction as the Android app: a short look at why phones and feeds are built to be addictive, an estimate of how much time scrolling takes from your year, and a first target site with a daily limit.
 
@@ -128,10 +148,10 @@ Videos and music behind the warning screen pause, and they cannot start again un
 
 ### Supported Browsers
 
-| Browser | Build | Notes |
-| --- | --- | --- |
-| Chrome, Brave, Edge, Helium and other Chromium browsers | Manifest V3 | Full support |
-| Firefox | Manifest V2 | Full support. Built to also run on Firefox for Android, where the app opens as a tab. |
+| Browser | Build | Store | Notes |
+| --- | --- | --- | --- |
+| Chrome, Brave, Edge, Helium and other Chromium browsers | Manifest V3 | [Chrome Web Store](https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie) | Full support |
+| Firefox | Manifest V2 | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/curbox/) | Full support. Built to also run on Firefox for Android, where the app opens as a tab. |
 
 #### Why Curbox asks for each permission
 
@@ -156,7 +176,7 @@ npm run lint:firefox   # build for Firefox and run Mozilla's add-on linter
 npm run zip:firefox    # the add-on and sources zips to upload to AMO
 ```
 
-Shipping a Firefox build? Follow [docs/firefox-release.md](docs/firefox-release.md).
+Shipping a release? Follow [docs/chrome-release.md](docs/chrome-release.md) for the Chrome Web Store and [docs/firefox-release.md](docs/firefox-release.md) for Firefox Add-ons.
 
 Built with [WXT](https://wxt.dev), [React](https://react.dev), [TypeScript](https://www.typescriptlang.org) and [Tailwind CSS](https://tailwindcss.com).
 
