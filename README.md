@@ -2,12 +2,6 @@
   <img src="public/icon/icon.svg" width="96" height="96" alt="Curbox" />
   <h2>Curbox Browser</h2>
 
-  <p>
-    <a href="https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie"><img src="https://img.shields.io/badge/Download%20from-Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Download from Chrome Web Store" height="40"></a>
-    &nbsp;
-    <a href="https://addons.mozilla.org/en-US/firefox/addon/curbox/"><img src="https://img.shields.io/badge/Download%20from-Firefox%20Add--ons-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white" alt="Download from Firefox Add-ons" height="40"></a>
-  </p>
-
   <p><b>Mindful friction for the web. Honest usage stats, gentle blocking and focus sessions, all on your device.</b></p>
 
   [![GitHub contributors](https://img.shields.io/github/contributors/curbox-app/curbox-extension)](https://github.com/curbox-app/curbox-extension/graphs/contributors)
@@ -19,6 +13,13 @@
 </div>
 
 Curbox Browser is the open source browser companion to [Curbox for Android](https://github.com/curbox-app/curbox-android). It helps you reclaim your time online and master your browsing habits with the same tools as the app: honest usage stats, website and keyword blocking, focus sessions with a Pomodoro timer, and mindful nudges that make distracting sites less rewarding. When you hit a block, Curbox puts a calm warning screen in the way instead of a hard wall, so it feels like a pause and not a punishment.
+
+## Installation
+### For Chrome based browsers (chrome, helium, brave etc)
+<a href="https://chromewebstore.google.com/detail/curbox/pibbkglphadkglpndilhefjkjpojmlie"><img src="https://img.shields.io/badge/Download%20from-Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Download from Chrome Web Store" height="40"></a>
+
+### For Firefox based browsers (firefox, tor, librewolf etc)
+<a href="https://addons.mozilla.org/en-US/firefox/addon/curbox/"><img src="https://img.shields.io/badge/Download%20from-Firefox%20Add--ons-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white" alt="Download from Firefox Add-ons" height="40"></a>
 
 ### Screenshots
 
