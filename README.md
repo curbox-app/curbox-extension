@@ -105,6 +105,9 @@ Curbox goes beyond simple site timers. It targets the specific triggers that lea
 - **Focus Statistics:** Sessions, total focus time, average and longest session, completion rate, your current streak and a weekly chart, filterable by focus group.
 - **Gentle Prompts:** A small live note that floats over the sites you choose, with its own text size, colors, opacity and position. Messages can use the same variables as Android: `{app_name}`, `{app_usage_today}`, `{app_usage_yesterday}`, `{app_opens_today}`, `{screentime_today}`, `{screentime_yesterday}`, `{mindful_apps_usage_today}`, `{live_session_duration}`, `{reel_count}`, `{group_usage_today:Name}` and `{group_usage_yesterday:Name}`.
 - **Site Specific Grayscale:** Turn chosen sites gray on a schedule while everything else stays in color. Gray sites are gray from the first paint.
+- **Sip & Stretch:** Take a short break to drink water and move after long use.
+- **Urge Surfing:** Ride out a strong craving instead of fighting it, with a calm game of Quiet Blocks to hold your attention. Curbox can offer help after a few unlocks in a row.
+- **Sync:** Share focus mode, website blocker groups and usage with Curbox on your Android phone, over WiFi or Tailscale. Pairing uses a code from your phone, everything is encrypted, and nothing passes through a Curbox server.
 
 #### Unlock Mechanisms
 Define what happens on the warning screen when you try to open a blocked site. The options, names and order match the Android app:

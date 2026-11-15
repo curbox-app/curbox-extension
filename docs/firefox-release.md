@@ -22,7 +22,7 @@ Expected linter result: **0 errors**, and these 2 warnings, which are safe to sh
 
 | Warning | Why it is fine |
 | --- | --- |
-| `UNSAFE_VAR_ASSIGNMENT` (two in `chunks/shell-*.js`) | These are inside React DOM's own code: one renders `dangerouslySetInnerHTML` and one creates `<script>` elements. Curbox uses neither, and never assigns `innerHTML` itself. |
+| `UNSAFE_VAR_ASSIGNMENT` (two in one shared chunk under `chunks/`, its name changes between builds) | These are inside React DOM's own code: one renders `dangerouslySetInnerHTML` and one creates `<script>` elements. Curbox uses neither, and never assigns `innerHTML` itself. |
 
 The minimum versions are Firefox 140 and Firefox for Android 142, the first versions that read `data_collection_permissions`, which AMO requires for new add-ons.
 
@@ -81,14 +81,25 @@ The output in .output/firefox-mv2 is identical to the submitted add-on.
 Tested with Node.js 26.3.0 and npm 11.16.0 on macOS.
 
 DATA
-No data is collected or transmitted. Usage history, settings and focus history are stored
-only in browser.storage.local. There are no analytics.
+No data is collected by the developer or any third party, and there are no analytics.
+Usage history, settings and focus history are stored in browser.storage.local.
+The optional Sync feature (Reducers > Sync) pairs the add-on with the user's own phone running
+the Curbox Android app. It is off until the user types a pairing code shown on their phone.
+Once paired, it exchanges focus state, website blocker groups and daily per site totals
+directly with that phone. There is no Curbox server in between: requests go straight to the
+phone, and every payload is encrypted with AES-GCM using a key agreed through ECDH (P-256)
+during pairing.
 
 NETWORK REQUESTS
 - api.github.com and raw.githubusercontent.com (repository curbox-app/website_packs):
   only when the user chooses to import a community list of websites to block.
 - curbox.app/terms.html and curbox.app/privacy.html: shown in an iframe when the user
   opens the Terms or Privacy Policy from the first run consent dialog.
+- http://<phone address>:47621 (the user's own phone on the local network, or its
+  Tailscale address): only after the user pairs Sync. While searching for the phone the
+  add-on checks addresses on the current /24 subnet for /v1/hello, stopping at the first
+  phone that answers. Plain http is used because the phone has no certificate; the
+  payloads themselves are encrypted as described above.
 No remote code is loaded or executed.
 
 PERMISSIONS
@@ -102,7 +113,7 @@ PERMISSIONS
   locally.
 
 INNERHTML WARNINGS
-The two UNSAFE_VAR_ASSIGNMENT warnings are inside React DOM (chunks/shell-*.js). Curbox's own
+The two UNSAFE_VAR_ASSIGNMENT warnings are inside React DOM, bundled into a shared chunk. Curbox's own
 code builds all DOM with createElement and textContent.
 
 TESTING
@@ -125,5 +136,5 @@ a daily limit of 0 minutes, then visit that site.
 | License | Must match the LICENSE file in this repository |
 | Privacy policy | Yes, see https://curbox.app/privacy.html |
 | Data collection | None |
-| Screenshots | `docs/screenshots/` |
+| Screenshots | `docs/store/screenshot-*.png` (styled, 1280x800) or the raw shots in `docs/screenshots/` |
 | Description | Start from the feature sections in `README.md`. Keep dashes out of listing text. |

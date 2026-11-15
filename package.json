@@ -2,7 +2,7 @@
   "name": "curbox-extension",
   "description": "Curbox Browser, a companion for mindful browsing",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
